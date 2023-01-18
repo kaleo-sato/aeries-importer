@@ -1,0 +1,52 @@
+from unittest.mock import Mock
+
+from pytest import raises
+
+from course_and_student_data import get_periods_to_course_ids, get_user_ids_to_student_emails
+
+
+def test_get_periods_to_course_ids():
+    mock_classroom_service = Mock()
+    mock_classroom_service.courses.return_value.list.return_value.execute.return_value = {
+        'courses': [{'name': 'course foo',
+                     'section': '3A',
+                     'id': 23},
+                    {'name': 'The English II',
+                     'section': 'Period 1',
+                     'id': 10},
+                    {'name': 'English I: SDAIE',
+                     'section': 'Period 2',
+                     'id': 20}]}
+    assert get_periods_to_course_ids(classroom_service=mock_classroom_service,
+                                     periods=[1, 2]) == {1: 10, 2: 20}
+
+
+def test_get_periods_to_course_ids_invalid_period():
+    mock_classroom_service = Mock()
+    mock_classroom_service.courses.return_value.list.return_value.execute.return_value = {
+        'courses': [{'name': 'course foo',
+                     'section': '3A',
+                     'id': 23},
+                    {'name': 'The English II',
+                     'section': 'Period 1',
+                     'id': 10},
+                    {'name': 'English I: SDAIE',
+                     'section': 'Period 2',
+                     'id': 20}]}
+
+    with raises(ValueError, match=r'Period 3 is not a valid period number.'):
+        get_periods_to_course_ids(classroom_service=mock_classroom_service,
+                                  periods=[1, 2, 3])
+
+
+def test_get_user_ids_to_student_emails():
+    mock_classroom_service = Mock()
+    mock_classroom_service.courses.return_value.students.return_value.list.return_value.execute.return_value = {
+        'students': [{'userId': 33, 'profile': {'emailAddress': 'foo@example.com'}},
+                     {'userId': 51, 'profile': {'emailAddress': 'something@gmail.org'}}]
+    }
+
+    assert get_user_ids_to_student_emails(classroom_service=mock_classroom_service, course_id=11) == {
+        33: 'foo@example.com',
+        51: 'something@gmail.org'
+    }
