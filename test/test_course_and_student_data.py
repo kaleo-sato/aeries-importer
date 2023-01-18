@@ -2,7 +2,8 @@ from unittest.mock import Mock
 
 from pytest import raises
 
-from course_and_student_data import get_periods_to_course_ids, get_user_ids_to_student_emails
+from course_and_student_data import get_periods_to_course_ids, get_user_ids_to_student_emails, \
+    get_all_published_coursework, get_grades_for_coursework
 
 
 def test_get_periods_to_course_ids():
@@ -50,3 +51,31 @@ def test_get_user_ids_to_student_emails():
         33: 'foo@example.com',
         51: 'something@gmail.org'
     }
+
+
+def test_get_all_published_coursework():
+    mock_classroom_service = Mock()
+    mock_classroom_service.courses.return_value.courseWork.return_value.list.return_value.execute.return_value = {
+        'courseWork': [{'id': 10},
+                       {'id': 20}]
+    }
+
+    assert get_all_published_coursework(classroom_service=mock_classroom_service, course_id=11) == [10, 20]
+
+
+def test_get_grades_for_coursework():
+    mock_classroom_service = Mock()
+    (mock_classroom_service
+     .courses.return_value
+     .courseWork.return_value
+     .studentSubmissions.return_value
+     .list.return_value
+     .execute.return_value) = {
+        'studentSubmissions': [{'userId': 10, 'assignedGrade': 20.3},
+                               {'userId': 20}]
+    }
+
+    assert get_grades_for_coursework(classroom_service=mock_classroom_service,
+                                     course_id=11,
+                                     coursework_id=33) == {10: 20.3, 20: None}
+
