@@ -1,7 +1,5 @@
 from unittest.mock import Mock, patch, call
 
-import pytest
-
 from importer import run_import, _get_emails_to_grades, OverallGrades
 
 

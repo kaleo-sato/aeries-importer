@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 from pytest import raises
 
-from course_and_student_data import get_periods_to_course_ids, get_user_ids_to_student_emails, \
+from google_classroom_utils import get_periods_to_course_ids, get_user_ids_to_student_emails, \
     get_all_published_coursework, get_grades_for_coursework
 
 

@@ -3,8 +3,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Optional
 
-from course_and_student_data import (get_all_published_coursework, get_periods_to_course_ids,
-                                     get_user_ids_to_student_emails, get_grades_for_coursework)
+from google_classroom_utils import (get_all_published_coursework, get_periods_to_course_ids,
+                                    get_user_ids_to_student_emails, get_grades_for_coursework)
 
 
 @dataclass(frozen=True)
