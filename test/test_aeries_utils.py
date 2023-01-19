@@ -1,10 +1,11 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 
 from bs4 import Tag, NavigableString
 from pytest import raises
 
 from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TAG_NAME, GRADEBOOK_URL,
-                          _get_periods_to_gradebook_and_term, )
+                          _get_periods_to_gradebook_and_term, extract_student_ids_to_student_nums_from_html,
+                          STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums)
 
 
 def test_extract_gradebook_ids_from_html():
@@ -67,7 +68,7 @@ def test_get_periods_to_gradebook_and_term_invalid_class_name():
                                            beautiful_soup=mock_beautiful_soup)
 
 
-def test_get_periods_to_gradebook_and_term():
+def test_get_periods_to_gradebook_and_term_invalid_period_num():
     mock_beautiful_soup = Mock()
     mock_beautiful_soup.find.return_value.find_all.return_value = [
         Tag(attrs={GRADEBOOK_AND_TERM_TAG_NAME: 'period 1 gradebook and term'}, name='first'),
@@ -84,3 +85,49 @@ def test_get_periods_to_gradebook_and_term():
                                   r'Periods found in Aeries: 1'):
         _get_periods_to_gradebook_and_term(periods=[1, 2],
                                            beautiful_soup=mock_beautiful_soup)
+
+
+def test_extract_student_ids_to_student_nums_from_html():
+    mock_response = Mock()
+    mock_response.text = 'my html'
+    mock_beautiful_soup = Mock()
+    mock_beautiful_soup_2 = Mock()
+
+    expected_headers = {
+        'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+        'Cookie': 's=aeries-cookie'
+    }
+
+    with patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get:
+        with patch('aeries_utils.BeautifulSoup',
+                   side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
+            with patch('aeries_utils._get_student_ids_to_student_nums',
+                       side_effect=[{1: 10, 2: 20},
+                                    {3: 30, 4: 40}]) as mock_get_student_ids_to_student_nums:
+                assert extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
+                                                                     aeries_cookie='aeries-cookie') == {
+                    1: {1: 10, 2: 20},
+                    2: {3: 30, 4: 40}
+                }
+                mock_requests_get.assert_has_calls([
+                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
+                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
+                ])
+                mock_beautiful_soup_create.assert_has_calls([
+                    call('my html', 'html.parser'),
+                    call('my html', 'html.parser')
+                ])
+                mock_get_student_ids_to_student_nums.assert_has_calls([
+                    call(beautiful_soup=mock_beautiful_soup),
+                    call(beautiful_soup=mock_beautiful_soup_2)
+                ])
+
+
+def test_get_student_ids_to_student_nums():
+    mock_beautiful_soup = Mock()
+    mock_beautiful_soup.find.return_value.find_all.return_value = [
+        Tag(attrs={STUDENT_NUMBER_TAG_NAME: '1', STUDENT_ID_TAG_NAME: '10'}, name='first'),
+        Tag(attrs={STUDENT_NUMBER_TAG_NAME: '2', STUDENT_ID_TAG_NAME: '20'}, name='second')
+    ]
+
+    assert _get_student_ids_to_student_nums(beautiful_soup=mock_beautiful_soup) == {10: 1, 20: 2}

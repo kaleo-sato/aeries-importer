@@ -11,9 +11,14 @@ GRADEBOOK_NAME_PATTERN = r'^([1-6]) - '
 GRADEBOOK_AND_TERM_TAG_NAME = 'data-validgradebookandterm'
 LIST_VIEW_ID = 'GbkDash-list-view'
 
+SCORES_BY_CLASS_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/scoresByClass'
+SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME = 'students'
+STUDENT_ID_TAG_NAME = 'data-stuid'
+STUDENT_NUMBER_TAG_NAME = 'data-sn'
+
 
 def extract_gradebook_ids_from_html(periods: list[int],
-                                    aeries_cookie: str) -> Iterable[int]:
+                                    aeries_cookie: str) -> dict[int, str]:
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={aeries_cookie}'}
     response = requests.get(GRADEBOOK_URL, headers=headers)
@@ -54,3 +59,33 @@ def _get_periods_to_gradebook_and_term(periods: list[int],
         )
 
     return periods_to_gradebook_and_term
+
+
+def extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids: dict[int, str],
+                                                  aeries_cookie: str) -> Iterable[int]:
+    headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+               'Cookie': f's={aeries_cookie}'}
+
+    periods_to_student_ids_and_student_nums = dict()
+    for period, gradebook_id in periods_to_gradebook_ids.items():
+        response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
+        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+
+        periods_to_student_ids_and_student_nums[period] = _get_student_ids_to_student_nums(
+            beautiful_soup=beautiful_soup
+        )
+
+    return periods_to_student_ids_and_student_nums
+
+
+def _get_student_ids_to_student_nums(beautiful_soup: BeautifulSoup) -> dict[int, int]:
+    student_ids_to_student_nums = dict()
+    for tag in (beautiful_soup
+                .find('table', class_=SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME)
+                .find_all('tr', class_='row')):
+        student_number = int(tag.get(STUDENT_NUMBER_TAG_NAME))
+        student_id = int(tag.get(STUDENT_ID_TAG_NAME))
+
+        student_ids_to_student_nums[student_id] = student_number
+
+    return student_ids_to_student_nums
