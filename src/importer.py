@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Optional
 
+from aeries_utils import extract_gradebook_ids_from_html
 from google_classroom_utils import (get_all_published_coursework, get_periods_to_course_ids,
                                     get_user_ids_to_student_emails, get_grades_for_coursework)
 
@@ -13,18 +14,23 @@ class OverallGrades:
 
 
 def run_import(classroom_service,
-               periods: Iterable[int]) -> None:
+               periods: list[int],
+               aeries_cookie: str) -> None:
     """
     Runs the logic for importing assignment grades from Google Classroom to Aeries.
 
     :param classroom_service: The Google Classroom service object.
+    :param aeries_cookie: The cookie for logging into Aeries.
     :param periods: The list of period numbers to import grades.
     """
-    emails_to_grades = _get_emails_to_grades(classroom_service=classroom_service,
-                                             periods=periods)
+    # emails_to_grades = _get_emails_to_grades(classroom_service=classroom_service,
+    #                                          periods=periods)
+    #
+    # print(emails_to_grades)
 
-    print(emails_to_grades)
-    return emails_to_grades
+    gradebook_ids = extract_gradebook_ids_from_html(periods=periods,
+                                                    aeries_cookie=aeries_cookie)
+    return None
 
 
 def _get_emails_to_grades(classroom_service, periods: Iterable[int]) -> dict[str, OverallGrades]:

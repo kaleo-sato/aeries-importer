@@ -29,9 +29,11 @@ def test_run_aeries_importer():
         with patch('main.build', return_value=mock_classroom_service) as mock_build:
             with patch('main.run_import') as mock_run_import:
                 CliRunner().invoke(run_aeries_importer,
-                                   args=['--periods', '1,2,3'],
+                                   args=['--periods', '1,2,3',
+                                         '--aeries-cookie', 'cookie'],
                                    catch_exceptions=False)
                 mock_authenticate.assert_called_once()
                 mock_build.assert_called_once_with(serviceName='classroom', version='v1', credentials=mock_credentials)
                 mock_run_import.assert_called_once_with(classroom_service=mock_classroom_service,
+                                                        aeries_cookie='cookie',
                                                         periods=[1, 2, 3])
