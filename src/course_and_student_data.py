@@ -40,9 +40,9 @@ def get_user_ids_to_student_emails(classroom_service, course_id: int) -> dict[in
     return {student['userId']: student['profile']['emailAddress'] for student in students}
 
 
-def get_all_published_coursework(classroom_service, course_id: int) -> list[int]:
+def get_all_published_coursework(classroom_service, course_id: int) -> list[tuple[int, str]]:
     """
-    Returns a list of all coursework ids for published coursework in the given course_id.
+    Returns a list of all assignment names and coursework ids for published coursework in the given course_id.
 
     :param classroom_service: The Google Classroom service object.
     :param course_id: The Course Id to get all published coursework for.
@@ -55,12 +55,14 @@ def get_all_published_coursework(classroom_service, course_id: int) -> list[int]
                         pageSize=COURSEWORK_PAGE_SIZE)
                   .execute()
                   .get('courseWork', []))
-    return [coursework_obj['id'] for coursework_obj in coursework]
+    return [(coursework_obj['id'], coursework_obj['title']) for coursework_obj in coursework]
 
 
-def get_grades_for_coursework(classroom_service, course_id: int, coursework_id: int) -> dict[int, Optional[float]]:
+def get_grades_for_coursework(classroom_service,
+                              course_id: int,
+                              coursework_id: int) -> dict[int, Optional[float]]:
     """
-    Returns the grades for an assignment as a map of user id to a tuple, denoting the name of the assignment and float.
+    Returns the grades for the assignment as a map of user id to the point total.
     If the grade is None, that means that the assignment is not graded. This could mean that grading is unfinished, or
     that the student is excused from this work.
 

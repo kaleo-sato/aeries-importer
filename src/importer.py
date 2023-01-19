@@ -1,7 +1,15 @@
+from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Optional
 
 from course_and_student_data import (get_all_published_coursework, get_periods_to_course_ids,
                                      get_user_ids_to_student_emails, get_grades_for_coursework)
+
+
+@dataclass(frozen=True)
+class OverallGrades:
+    assignment_name_to_grades: dict[str, Optional[float]]
 
 
 def run_import(classroom_service,
@@ -12,20 +20,31 @@ def run_import(classroom_service,
     :param classroom_service: The Google Classroom service object.
     :param periods: The list of period numbers to import grades.
     """
+    emails_to_grades = _get_emails_to_grades(classroom_service=classroom_service,
+                                             periods=periods)
+
+    print(emails_to_grades)
+    return emails_to_grades
+
+
+def _get_emails_to_grades(classroom_service, periods: Iterable[int]) -> dict[str, OverallGrades]:
     periods_to_course_ids = get_periods_to_course_ids(classroom_service=classroom_service,
                                                       periods=periods)
 
+    emails_to_grades: dict[str, OverallGrades] = defaultdict(lambda: OverallGrades(assignment_name_to_grades={}))
     for period, course_id in periods_to_course_ids.items():
         user_ids_to_emails = get_user_ids_to_student_emails(classroom_service=classroom_service,
                                                             course_id=course_id)
 
-        coursework_ids = get_all_published_coursework(classroom_service=classroom_service,
-                                                      course_id=course_id)
+        coursework_ids_and_names = get_all_published_coursework(classroom_service=classroom_service,
+                                                                course_id=course_id)
 
-        for coursework_id in coursework_ids:
+        for coursework_id, assignment_name in coursework_ids_and_names:
             user_ids_to_grades = get_grades_for_coursework(classroom_service=classroom_service,
                                                            course_id=course_id,
                                                            coursework_id=coursework_id)
-            print(user_ids_to_grades)
+            for user_id, grade in user_ids_to_grades.items():
+                email = user_ids_to_emails[user_id]
+                emails_to_grades[email].assignment_name_to_grades[assignment_name] = grade
 
-    return user_ids_to_grades
+    return emails_to_grades

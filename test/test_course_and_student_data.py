@@ -56,11 +56,14 @@ def test_get_user_ids_to_student_emails():
 def test_get_all_published_coursework():
     mock_classroom_service = Mock()
     mock_classroom_service.courses.return_value.courseWork.return_value.list.return_value.execute.return_value = {
-        'courseWork': [{'id': 10},
-                       {'id': 20}]
+        'courseWork': [{'id': 10, 'title': 'Biology'},
+                       {'id': 20, 'title': 'Math'}]
     }
 
-    assert get_all_published_coursework(classroom_service=mock_classroom_service, course_id=11) == [10, 20]
+    assert get_all_published_coursework(classroom_service=mock_classroom_service, course_id=11) == [
+        (10, 'Biology'),
+        (20, 'Math')
+    ]
 
 
 def test_get_grades_for_coursework():
