@@ -81,4 +81,3 @@ def test_get_grades_for_coursework():
     assert get_grades_for_coursework(classroom_service=mock_classroom_service,
                                      course_id=11,
                                      coursework_id=33) == {10: 20.3, 20: None}
-
