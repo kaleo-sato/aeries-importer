@@ -37,7 +37,7 @@ def run_import(classroom_service,
         aeries_cookie=aeries_cookie
     )
 
-    periods_to_assignment = extract_assignment_information_from_html(
+    periods_to_assignments = extract_assignment_information_from_html(
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         aeries_cookie=aeries_cookie
     )
