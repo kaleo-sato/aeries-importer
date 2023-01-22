@@ -3,7 +3,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Optional
 
-from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html
+from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
+    extract_assignment_information_from_html
 from google_classroom_utils import (get_all_published_coursework, get_periods_to_course_ids,
                                     get_user_ids_to_student_emails, get_grades_for_coursework)
 
@@ -32,6 +33,11 @@ def run_import(classroom_service,
                                                                aeries_cookie=aeries_cookie)
 
     student_ids_to_student_nums = extract_student_ids_to_student_nums_from_html(
+        periods_to_gradebook_ids=periods_to_gradebook_ids,
+        aeries_cookie=aeries_cookie
+    )
+
+    periods_to_assignment = extract_assignment_information_from_html(
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         aeries_cookie=aeries_cookie
     )
