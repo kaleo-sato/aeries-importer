@@ -5,13 +5,12 @@ from typing import Optional
 
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
     extract_assignment_information_from_html
-from google_classroom_utils import (get_all_published_coursework, get_periods_to_course_ids,
-                                    get_user_ids_to_student_emails, get_grades_for_coursework)
+from google_classroom_utils import get_submissions
 
 
 @dataclass(frozen=True)
-class OverallGrades:
-    assignment_name_to_grades: dict[str, Optional[float]]
+class AssignmentSubmissions:
+    student_submissions: dict[int, Optional[float]]
 
 
 def run_import(classroom_service,
@@ -24,44 +23,19 @@ def run_import(classroom_service,
     :param aeries_cookie: The cookie for logging into Aeries.
     :param periods: The list of period numbers to import grades.
     """
-    # emails_to_grades = _get_emails_to_grades(classroom_service=classroom_service,
-    #                                          periods=periods)
+    periods_to_assignment_name_to_submissions = get_submissions(classroom_service=classroom_service,
+                                                                periods=periods)
+
+    # periods_to_gradebook_ids = extract_gradebook_ids_from_html(periods=periods,
+    #                                                            aeries_cookie=aeries_cookie)
     #
-    # print(emails_to_grades)
-
-    periods_to_gradebook_ids = extract_gradebook_ids_from_html(periods=periods,
-                                                               aeries_cookie=aeries_cookie)
-
-    student_ids_to_student_nums = extract_student_ids_to_student_nums_from_html(
-        periods_to_gradebook_ids=periods_to_gradebook_ids,
-        aeries_cookie=aeries_cookie
-    )
-
-    periods_to_assignments = extract_assignment_information_from_html(
-        periods_to_gradebook_ids=periods_to_gradebook_ids,
-        aeries_cookie=aeries_cookie
-    )
+    # student_ids_to_student_nums = extract_student_ids_to_student_nums_from_html(
+    #     periods_to_gradebook_ids=periods_to_gradebook_ids,
+    #     aeries_cookie=aeries_cookie
+    # )
+    #
+    # periods_to_assignments = extract_assignment_information_from_html(
+    #     periods_to_gradebook_ids=periods_to_gradebook_ids,
+    #     aeries_cookie=aeries_cookie
+    # )
     return None
-
-
-def _get_emails_to_grades(classroom_service, periods: Iterable[int]) -> dict[str, OverallGrades]:
-    periods_to_course_ids = get_periods_to_course_ids(classroom_service=classroom_service,
-                                                      periods=periods)
-
-    emails_to_grades: dict[str, OverallGrades] = defaultdict(lambda: OverallGrades(assignment_name_to_grades={}))
-    for period, course_id in periods_to_course_ids.items():
-        user_ids_to_emails = get_user_ids_to_student_emails(classroom_service=classroom_service,
-                                                            course_id=course_id)
-
-        coursework_ids_and_names = get_all_published_coursework(classroom_service=classroom_service,
-                                                                course_id=course_id)
-
-        for coursework_id, assignment_name in coursework_ids_and_names:
-            user_ids_to_grades = get_grades_for_coursework(classroom_service=classroom_service,
-                                                           course_id=course_id,
-                                                           coursework_id=coursework_id)
-            for user_id, grade in user_ids_to_grades.items():
-                email = user_ids_to_emails[user_id]
-                emails_to_grades[email].assignment_name_to_grades[assignment_name] = grade
-
-    return emails_to_grades

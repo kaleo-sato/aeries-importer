@@ -1,12 +1,57 @@
+import re
+from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Optional
 
 COURSEWORK_PAGE_SIZE = 1000
 COURSEWORK_SUBMISSION_PAGE_SIZE = 100
 
+EMAIL_ADDRESS_PATTERN = r'^[A-Za-z]{2}([0-9]+)@student\.musd\.org$'
+EMAIL_ADDRESS_PATTERN_COMPILE = re.compile(EMAIL_ADDRESS_PATTERN)
 
-def get_periods_to_course_ids(classroom_service,
-                              periods: Iterable[int]) -> dict[int, int]:
+
+@dataclass(frozen=True)
+class AssignmentSubmissions:
+    student_submissions: dict[int, Optional[float]]
+
+
+def get_submissions(classroom_service, periods: Iterable[int]) -> dict[int, dict[str, AssignmentSubmissions]]:
+    """
+    Gets all student submissions of assignments for the periods specified. Returns the result in a data structure
+    that breaks things down in a manner that is easy to match with Aeries results.
+
+    period -> assignment name -> student id -> grade
+
+    :param classroom_service: The Google Classroom service object.
+    :param periods: The list of periods to filter for.
+    :return: The submission data for the Google Classroom.
+    """
+    periods_to_course_ids = _get_periods_to_course_ids(classroom_service=classroom_service,
+                                                       periods=periods)
+
+    periods_to_assignments_to_submissions: dict[int, dict[str, AssignmentSubmissions]] = defaultdict(
+        lambda: defaultdict(lambda: AssignmentSubmissions(student_submissions={})))
+    for period, course_id in periods_to_course_ids.items():
+        user_ids_to_student_ids = _get_user_ids_to_student_ids(classroom_service=classroom_service,
+                                                               course_id=course_id)
+
+        coursework_ids_and_names = _get_all_published_coursework(classroom_service=classroom_service,
+                                                                 course_id=course_id)
+
+        for coursework_id, assignment_name in coursework_ids_and_names:
+            user_ids_to_grades = _get_grades_for_coursework(classroom_service=classroom_service,
+                                                            course_id=course_id,
+                                                            coursework_id=coursework_id)
+            for user_id, grade in user_ids_to_grades.items():
+                student_id = user_ids_to_student_ids[user_id]
+                periods_to_assignments_to_submissions[period][assignment_name].student_submissions[student_id] = grade
+
+    return periods_to_assignments_to_submissions
+
+
+def _get_periods_to_course_ids(classroom_service,
+                               periods: Iterable[int]) -> dict[int, int]:
     """
     Returns period number mapped to the id.
 
@@ -28,19 +73,30 @@ def get_periods_to_course_ids(classroom_service,
     return periods_to_course_ids
 
 
-def get_user_ids_to_student_emails(classroom_service, course_id: int) -> dict[int, str]:
+def _get_user_ids_to_student_ids(classroom_service, course_id: int) -> dict[int, int]:
     """
-    Returns user id mapped to the email.
+    Returns Google service user id mapped to the student id.
 
     :param classroom_service: The Google Classroom service object.
     :param course_id: The Course Id to fetch student emails from.
-    :return: The student user id mapped to their emails.
+    :return: The student user id mapped to their student id.
     """
     students = classroom_service.courses().students().list(courseId=course_id).execute().get('students', [])
-    return {student['userId']: student['profile']['emailAddress'] for student in students}
+    user_ids_to_student_ids: dict[int, int] = {}
+
+    for student in students:
+        email = student['profile']['emailAddress']
+        google_id = student['userId']
+
+        match = EMAIL_ADDRESS_PATTERN_COMPILE.match(email)
+
+        if not match:
+            raise ValueError(f'Student email address is in an unexpected format: {email}')
+        user_ids_to_student_ids[google_id] = int(match.group(1))
+    return user_ids_to_student_ids
 
 
-def get_all_published_coursework(classroom_service, course_id: int) -> list[tuple[int, str]]:
+def _get_all_published_coursework(classroom_service, course_id: int) -> list[tuple[int, str]]:
     """
     Returns a list of all assignment names and coursework ids for published coursework in the given course_id.
 
@@ -58,9 +114,9 @@ def get_all_published_coursework(classroom_service, course_id: int) -> list[tupl
     return [(coursework_obj['id'], coursework_obj['title']) for coursework_obj in coursework]
 
 
-def get_grades_for_coursework(classroom_service,
-                              course_id: int,
-                              coursework_id: int) -> dict[int, Optional[float]]:
+def _get_grades_for_coursework(classroom_service,
+                               course_id: int,
+                               coursework_id: int) -> dict[int, Optional[float]]:
     """
     Returns the grades for the assignment as a map of user id to the point total.
     If the grade is None, that means that the assignment is not graded. This could mean that grading is unfinished, or
