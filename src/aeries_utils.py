@@ -28,9 +28,8 @@ ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
 
 
 @dataclass(frozen=True)
-class Assignment:
+class AeriesAssignmentData:
     id: int
-    name: str
     point_total: int
 
 
@@ -109,7 +108,7 @@ def _get_student_ids_to_student_nums(beautiful_soup: BeautifulSoup) -> dict[int,
 
 
 def extract_assignment_information_from_html(periods_to_gradebook_ids: dict[int, str],
-                                             aeries_cookie: str) -> dict[int, list[Assignment]]:
+                                             aeries_cookie: str) -> dict[int, dict[str, AeriesAssignmentData]]:
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={aeries_cookie}'}
 
@@ -123,8 +122,8 @@ def extract_assignment_information_from_html(periods_to_gradebook_ids: dict[int,
     return periods_to_assignment_information
 
 
-def _get_assignment_information(beautiful_soup: BeautifulSoup) -> list[Assignment]:
-    assignments = []
+def _get_assignment_information(beautiful_soup: BeautifulSoup) -> dict[str, AeriesAssignmentData]:
+    assignments = {}
     for tag in (beautiful_soup
                 .find('table', class_=SCORES_BY_CLASS_ASSIGNMENT_INFO_TABLE_CLASS_NAME)
                 .find_all('th', class_=SCORES_BY_CLASS_ASSIGNMENT_NAME_CLASS_NAME)):
@@ -139,23 +138,22 @@ def _get_assignment_information(beautiful_soup: BeautifulSoup) -> list[Assignmen
 
         assignment_name = description_match.group(1)
 
-        assignment_point_total_match = (tag
-                                        .find('tr', class_=ASSIGNMENT_SCORES_ROW)
-                                        .find('div', class_='ellipsis')
-                                        .find('span', title=ASSIGNMENT_TOTAL_SCORE_TITLE)
-                                        .string)
+        assignment_point_total_desc = (tag
+                                       .find('tr', class_=ASSIGNMENT_SCORES_ROW)
+                                       .find('div', class_='ellipsis')
+                                       .find('span', title=ASSIGNMENT_TOTAL_SCORE_TITLE)
+                                       .string)
 
-        point_total_match = re.match(ASSIGNMENT_POINT_TOTAL_PATTERN, assignment_point_total_match)
+        point_total_match = re.match(ASSIGNMENT_POINT_TOTAL_PATTERN, assignment_point_total_desc)
 
         if not point_total_match:
-            raise ValueError(f'Unexpected format for Aeries assignment point total: {assignment_description}. '
+            raise ValueError(f'Unexpected format for Aeries assignment point total: {assignment_point_total_desc}. '
                              'Expected it to look like " : <Point total>"')
 
         assignment_point_total = int(point_total_match.group(1))
         assignment_number = int(tag.get(ASSIGNMENT_NUMBER_TAG_NAME))
 
-        assignments.append(Assignment(id=assignment_number,
-                                      name=assignment_name,
-                                      point_total=assignment_point_total))
+        assignments[assignment_name] = AeriesAssignmentData(id=assignment_number,
+                                                            point_total=assignment_point_total)
 
     return assignments

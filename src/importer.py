@@ -1,5 +1,3 @@
-from collections import defaultdict
-from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Optional
 
@@ -26,16 +24,16 @@ def run_import(classroom_service,
     periods_to_assignment_name_to_submissions = get_submissions(classroom_service=classroom_service,
                                                                 periods=periods)
 
-    # periods_to_gradebook_ids = extract_gradebook_ids_from_html(periods=periods,
-    #                                                            aeries_cookie=aeries_cookie)
-    #
-    # student_ids_to_student_nums = extract_student_ids_to_student_nums_from_html(
-    #     periods_to_gradebook_ids=periods_to_gradebook_ids,
-    #     aeries_cookie=aeries_cookie
-    # )
-    #
-    # periods_to_assignments = extract_assignment_information_from_html(
-    #     periods_to_gradebook_ids=periods_to_gradebook_ids,
-    #     aeries_cookie=aeries_cookie
-    # )
+    periods_to_gradebook_ids = extract_gradebook_ids_from_html(periods=periods,
+                                                               aeries_cookie=aeries_cookie)
+
+    student_ids_to_student_nums = extract_student_ids_to_student_nums_from_html(
+        periods_to_gradebook_ids=periods_to_gradebook_ids,
+        aeries_cookie=aeries_cookie
+    )
+
+    periods_to_assignments = extract_assignment_information_from_html(
+        periods_to_gradebook_ids=periods_to_gradebook_ids,
+        aeries_cookie=aeries_cookie
+    )
     return None

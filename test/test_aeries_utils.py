@@ -6,7 +6,7 @@ from pytest import raises
 from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TAG_NAME, GRADEBOOK_URL,
                           _get_periods_to_gradebook_and_term, extract_student_ids_to_student_nums_from_html,
                           STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums,
-                          extract_assignment_information_from_html, Assignment, ASSIGNMENT_DESC_TAG_NAME,
+                          extract_assignment_information_from_html, AeriesAssignmentData,
                           _get_assignment_information)
 
 
@@ -151,13 +151,17 @@ def test_extract_assignment_information_from_html():
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
             with patch('aeries_utils._get_assignment_information',
                        side_effect=[
-                           [Assignment(1, 'a', 10), Assignment(2, 'b', 20)],
-                           [Assignment(1, 'a', 10), Assignment(3, 'c', 30)]
+                           {'a': AeriesAssignmentData(id=1, point_total=10),
+                            'b': AeriesAssignmentData(id=2, point_total=20)},
+                           {'a': AeriesAssignmentData(id=1, point_total=10),
+                            'c': AeriesAssignmentData(id=3, point_total=30)}
                        ]) as mock_get_assignment_information:
                 assert extract_assignment_information_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
                                                                 aeries_cookie='aeries-cookie') == {
-                           1: [Assignment(1, 'a', 10), Assignment(2, 'b', 20)],
-                           2: [Assignment(1, 'a', 10), Assignment(3, 'c', 30)]
+                           1: {'a': AeriesAssignmentData(id=1, point_total=10),
+                               'b': AeriesAssignmentData(id=2, point_total=20)},
+                           2: {'a': AeriesAssignmentData(id=1, point_total=10),
+                               'c': AeriesAssignmentData(id=3, point_total=30)}
                        }
                 mock_requests_get.assert_has_calls([
                     call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
@@ -197,11 +201,65 @@ def test_get_assignment_information():
         mock_assignment_tag_2
     ]
 
-    assert _get_assignment_information(beautiful_soup=mock_beautiful_soup) == [
-        Assignment(id=1,
-                   name='Introductory Assignment',
-                   point_total=10),
-        Assignment(id=2,
-                   name='The Next Assignment',
-                   point_total=20)
+    assert _get_assignment_information(beautiful_soup=mock_beautiful_soup) == {
+        'Introductory Assignment': AeriesAssignmentData(id=1, point_total=10),
+        'The Next Assignment': AeriesAssignmentData(id=2, point_total=20)
+    }
+
+
+def test_get_assignment_information_invalid_assignment_description():
+    mock_beautiful_soup = Mock()
+
+    mock_assignment_desc_tag_1 = Mock()
+    mock_assignment_desc_tag_1.get.return_value = '1 - Introductory Assignment'
+
+    mock_assignment_tag_1 = Mock()
+    mock_assignment_tag_1.find.return_value = mock_assignment_desc_tag_1
+    mock_assignment_tag_1.find.return_value.find.return_value.find.return_value = NavigableString(value=' : 10')
+    mock_assignment_tag_1.get.return_value = NavigableString(value='1')
+
+    mock_assignment_desc_tag_2 = Mock()
+    mock_assignment_desc_tag_2.get.return_value = 'The Next Assignment'
+
+    mock_assignment_tag_2 = Mock()
+    mock_assignment_tag_2.find.return_value = mock_assignment_desc_tag_2
+    mock_assignment_tag_2.find.return_value.find.return_value.find.return_value = NavigableString(value=' : 20')
+    mock_assignment_tag_2.get.return_value = NavigableString(value='2')
+
+    mock_beautiful_soup.find.return_value.find_all.return_value = [
+        mock_assignment_tag_1,
+        mock_assignment_tag_2
     ]
+
+    with raises (ValueError, match=r'Unexpected format for Aeries assignment description: The Next Assignment. '
+                                   'Expected it to start with "<Assignment number> - "'):
+        assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
+
+
+def test_get_assignment_information_invalid_assignment_description():
+    mock_beautiful_soup = Mock()
+
+    mock_assignment_desc_tag_1 = Mock()
+    mock_assignment_desc_tag_1.get.return_value = '1 - Introductory Assignment'
+
+    mock_assignment_tag_1 = Mock()
+    mock_assignment_tag_1.find.return_value = mock_assignment_desc_tag_1
+    mock_assignment_tag_1.find.return_value.find.return_value.find.return_value = NavigableString(value=' : 10')
+    mock_assignment_tag_1.get.return_value = NavigableString(value='1')
+
+    mock_assignment_desc_tag_2 = Mock()
+    mock_assignment_desc_tag_2.get.return_value = '2 - The Next Assignment'
+
+    mock_assignment_tag_2 = Mock()
+    mock_assignment_tag_2.find.return_value = mock_assignment_desc_tag_2
+    mock_assignment_tag_2.find.return_value.find.return_value.find.return_value = NavigableString(value='20')
+    mock_assignment_tag_2.get.return_value = NavigableString(value='2')
+
+    mock_beautiful_soup.find.return_value.find_all.return_value = [
+        mock_assignment_tag_1,
+        mock_assignment_tag_2
+    ]
+
+    with raises(ValueError, match=r'Unexpected format for Aeries assignment point total: 20. '
+                                  'Expected it to look like " : <Point total>"'):
+        assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
