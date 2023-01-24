@@ -1,5 +1,4 @@
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
@@ -78,7 +77,7 @@ def _get_periods_to_gradebook_and_term(periods: list[int],
 
 
 def extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids: dict[int, str],
-                                                  aeries_cookie: str) -> Iterable[int]:
+                                                  aeries_cookie: str) -> dict[int, int]:
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={aeries_cookie}'}
 
