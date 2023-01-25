@@ -1,5 +1,6 @@
 from unittest.mock import Mock, patch, call
 
+from arrow import Arrow
 from bs4 import Tag, NavigableString
 from pytest import raises
 
@@ -7,7 +8,9 @@ from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TA
                           _get_periods_to_gradebook_and_term, extract_student_ids_to_student_nums_from_html,
                           STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums,
                           extract_assignment_information_from_html, AeriesAssignmentData,
-                          _get_assignment_information)
+                          _get_assignment_information, create_aeries_assignment, CREATE_ASSIGNMENT_URL,
+                          _get_form_request_verification_token)
+from constants import MILPITAS_SCHOOL_CODE
 
 
 def test_extract_gradebook_ids_from_html():
@@ -21,7 +24,7 @@ def test_extract_gradebook_ids_from_html():
             with patch('aeries_utils._get_periods_to_gradebook_and_term',
                        return_value={1: 'foo', 2: 'bar'}) as mock_get_periods_to_gradebook_and_term:
                 assert extract_gradebook_ids_from_html(periods=periods,
-                                                       aeries_cookie='aeries-cookie') == {1: 'foo', 2: 'bar'}
+                                                       s_cookie='aeries-cookie') == {1: 'foo', 2: 'bar'}
                 mock_requests_get.assert_called_once_with(GRADEBOOK_URL, headers={
                     'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                     'Cookie': 's=aeries-cookie'
@@ -107,7 +110,7 @@ def test_extract_student_ids_to_student_nums_from_html():
                        side_effect=[{1: 10, 2: 20},
                                     {3: 30, 4: 40}]) as mock_get_student_ids_to_student_nums:
                 assert extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
-                                                                     aeries_cookie='aeries-cookie') == {
+                                                                     s_cookie='aeries-cookie') == {
                     1: {1: 10, 2: 20},
                     2: {3: 30, 4: 40}
                 }
@@ -157,7 +160,7 @@ def test_extract_assignment_information_from_html():
                             'c': AeriesAssignmentData(id=3, point_total=30)}
                        ]) as mock_get_assignment_information:
                 assert extract_assignment_information_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
-                                                                aeries_cookie='aeries-cookie') == {
+                                                                s_cookie='aeries-cookie') == {
                            1: {'a': AeriesAssignmentData(id=1, point_total=10),
                                'b': AeriesAssignmentData(id=2, point_total=20)},
                            2: {'a': AeriesAssignmentData(id=1, point_total=10),
@@ -231,12 +234,12 @@ def test_get_assignment_information_invalid_assignment_description():
         mock_assignment_tag_2
     ]
 
-    with raises (ValueError, match=r'Unexpected format for Aeries assignment description: The Next Assignment. '
-                                   'Expected it to start with "<Assignment number> - "'):
+    with raises(ValueError, match=r'Unexpected format for Aeries assignment description: The Next Assignment. '
+                                  'Expected it to start with "<Assignment number> - "'):
         assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
 
 
-def test_get_assignment_information_invalid_assignment_description():
+def test_get_assignment_information_invalid_assignment_point_total():
     mock_beautiful_soup = Mock()
 
     mock_assignment_desc_tag_1 = Mock()
@@ -263,3 +266,137 @@ def test_get_assignment_information_invalid_assignment_description():
     with raises(ValueError, match=r'Unexpected format for Aeries assignment point total: 20. '
                                   'Expected it to look like " : <Point total>"'):
         assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
+
+
+def test_create_aeries_assignment():
+    expected_headers = {
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Cookie': f'__RequestVerificationToken=request_verification_token; s=s_cookie'
+    }
+
+    expected_data = {
+        '__RequestVerificationToken': 'mock_token',
+        'Assignment.GradebookNumber': '12345',
+        'SourceGradebook.SchoolCode': MILPITAS_SCHOOL_CODE,
+        'SourceGradebook.Name': 'blah',
+        'Assignment.AssignmentNumber': 24,
+        'Assignment.Description': 'nothing',
+        'Assignment.AssignmentType': 'F',
+        'Assignment.Category': 1,
+        'Assignment.DateAssigned': '01/24/2023',
+        'Assignment.DateDue': '01/24/2023',
+        'Assignment.MaxNumberCorrect': 50,
+        'Assignment.MaxScore': 50,
+        'Assignment.VisibleToParents': True,
+        'Assignment.ScoresVisibleToParents': True
+    }
+
+    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+        with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
+            with patch('aeries_utils.requests.post') as mock_post_request:
+                mock_post_request.return_value.status_code = 200
+                assert create_aeries_assignment(
+                    gradebook_number='12345',
+                    assignment_id=24,
+                    assignment_name='nothing',
+                    point_total=50,
+                    category='Practice',
+                    s_cookie='s_cookie',
+                    request_verification_token='request_verification_token'
+                ) == AeriesAssignmentData(id=24, point_total=50)
+
+                mock_token.assert_called_once_with(gradebook_number='12345',
+                                                   s_cookie='s_cookie',
+                                                   request_verification_token='request_verification_token')
+                mock_arrow_now.assert_called_once()
+                mock_post_request.assert_called_once_with(
+                    CREATE_ASSIGNMENT_URL,
+                    params={'gn': '12345', 'an': 24},
+                    data=expected_data,
+                    headers=expected_headers
+                )
+
+
+def test_create_aeries_assignment_invalid_status_code():
+    expected_headers = {
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Cookie': f'__RequestVerificationToken=request_verification_token; s=s_cookie'
+    }
+
+    expected_data = {
+        '__RequestVerificationToken': 'mock_token',
+        'Assignment.GradebookNumber': '12345',
+        'SourceGradebook.SchoolCode': MILPITAS_SCHOOL_CODE,
+        'SourceGradebook.Name': 'blah',
+        'Assignment.AssignmentNumber': 24,
+        'Assignment.Description': 'nothing',
+        'Assignment.AssignmentType': 'F',
+        'Assignment.Category': 1,
+        'Assignment.DateAssigned': '01/24/2023',
+        'Assignment.DateDue': '01/24/2023',
+        'Assignment.MaxNumberCorrect': 50,
+        'Assignment.MaxScore': 50,
+        'Assignment.VisibleToParents': True,
+        'Assignment.ScoresVisibleToParents': True
+    }
+
+    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+        with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
+            with patch('aeries_utils.requests.post') as mock_post_request:
+                mock_post_request.return_value.status_code = 500
+
+                with raises(ValueError, match=r'Assignment creation has unexpected status code: 500'):
+                    assert create_aeries_assignment(
+                        gradebook_number='12345',
+                        assignment_id=24,
+                        assignment_name='nothing',
+                        point_total=50,
+                        category='Practice',
+                        s_cookie='s_cookie',
+                        request_verification_token='request_verification_token'
+                    )
+
+                mock_token.assert_called_once_with(gradebook_number='12345',
+                                                   s_cookie='s_cookie',
+                                                   request_verification_token='request_verification_token')
+                mock_arrow_now.assert_called_once()
+                mock_post_request.assert_called_once_with(
+                    CREATE_ASSIGNMENT_URL,
+                    params={'gn': '12345', 'an': 24},
+                    data=expected_data,
+                    headers=expected_headers
+                )
+
+
+def test_get_form_request_verification_token():
+    mock_response = Mock()
+    mock_response.text = 'my html'
+
+    mock_beautiful_soup = Mock()
+    mock_beautiful_soup.find.return_value.find.return_value = Tag(attrs={'value': 'form_request_verification_token'},
+                                                                  name='first')
+
+    expected_headers = {
+        'Cookie': f'__RequestVerificationToken=request_verification_token; s=s_cookie'
+    }
+
+    expected_params = {
+        'gn': '12345',
+        'an': 0
+    }
+
+    with patch('aeries_utils.requests.get', return_value=mock_response) as mock_request:
+        with patch('aeries_utils.BeautifulSoup', return_value=mock_beautiful_soup) as mock_beautiful_soup_create:
+            assert _get_form_request_verification_token(
+                gradebook_number='12345',
+                s_cookie='s_cookie',
+                request_verification_token='request_verification_token'
+            ) == 'form_request_verification_token'
+
+            mock_request.assert_called_once_with(CREATE_ASSIGNMENT_URL,
+                                                 params=expected_params,
+                                                 headers=expected_headers)
+            mock_beautiful_soup_create.assert_called_once_with(
+                'my html',
+                'html.parser'
+            )

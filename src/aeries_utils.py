@@ -1,8 +1,11 @@
 import re
 from dataclasses import dataclass
 
+from arrow import Arrow
 from bs4 import BeautifulSoup
 import requests
+
+from constants import MILPITAS_SCHOOL_CODE, CATEGORY_TO_AERIES_NUMBER
 
 GRADEBOOK_URL = 'https://aeries.musd.org/gradebook'
 GRADEBOOK_HTML_ID = 'ValidGradebookList'
@@ -25,6 +28,8 @@ ASSIGNMENT_NUMBER_TAG_NAME = 'data-an'
 ASSIGNMENT_SCORES_ROW = 'scores row'
 ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
 
+CREATE_ASSIGNMENT_URL = 'https://aeries.musd.org/gradebook/manage/assignment'
+
 
 @dataclass(frozen=True)
 class AeriesAssignmentData:
@@ -33,9 +38,9 @@ class AeriesAssignmentData:
 
 
 def extract_gradebook_ids_from_html(periods: list[int],
-                                    aeries_cookie: str) -> dict[int, str]:
+                                    s_cookie: str) -> dict[int, str]:
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-               'Cookie': f's={aeries_cookie}'}
+               'Cookie': f's={s_cookie}'}
     response = requests.get(GRADEBOOK_URL, headers=headers)
     beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -77,9 +82,9 @@ def _get_periods_to_gradebook_and_term(periods: list[int],
 
 
 def extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids: dict[int, str],
-                                                  aeries_cookie: str) -> dict[int, int]:
+                                                  s_cookie: str) -> dict[int, dict[int, int]]:
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-               'Cookie': f's={aeries_cookie}'}
+               'Cookie': f's={s_cookie}'}
 
     periods_to_student_ids_and_student_nums = dict()
     for period, gradebook_id in periods_to_gradebook_ids.items():
@@ -107,9 +112,9 @@ def _get_student_ids_to_student_nums(beautiful_soup: BeautifulSoup) -> dict[int,
 
 
 def extract_assignment_information_from_html(periods_to_gradebook_ids: dict[int, str],
-                                             aeries_cookie: str) -> dict[int, dict[str, AeriesAssignmentData]]:
+                                             s_cookie: str) -> dict[int, dict[str, AeriesAssignmentData]]:
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-               'Cookie': f's={aeries_cookie}'}
+               'Cookie': f's={s_cookie}'}
 
     periods_to_assignment_information = dict()
     for period, gradebook_id in periods_to_gradebook_ids.items():
@@ -156,3 +161,61 @@ def _get_assignment_information(beautiful_soup: BeautifulSoup) -> dict[str, Aeri
                                                             point_total=assignment_point_total)
 
     return assignments
+
+
+def create_aeries_assignment(gradebook_number: str,
+                             assignment_id: int,
+                             assignment_name: str,
+                             point_total: int,
+                             category: str,
+                             s_cookie: str,
+                             request_verification_token: str) -> AeriesAssignmentData:
+    form_request_verification_token = _get_form_request_verification_token(
+        gradebook_number=gradebook_number,
+        s_cookie=s_cookie,
+        request_verification_token=request_verification_token
+    )
+
+    time = Arrow.now()
+    headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+               'Cookie': f'__RequestVerificationToken={request_verification_token}; s={s_cookie}'}
+    data = {
+        '__RequestVerificationToken': form_request_verification_token,
+        'Assignment.GradebookNumber': gradebook_number,
+        'SourceGradebook.SchoolCode': MILPITAS_SCHOOL_CODE,
+        'SourceGradebook.Name': 'blah',
+        'Assignment.AssignmentNumber': assignment_id,
+        'Assignment.Description': assignment_name,
+        'Assignment.AssignmentType': 'S' if category == 'Performance' else 'F',
+        'Assignment.Category': CATEGORY_TO_AERIES_NUMBER[category],
+        'Assignment.DateAssigned': f'{time.month:02d}/{time.day:02d}/{time.year}',
+        'Assignment.DateDue': f'{time.month:02d}/{time.day:02d}/{time.year}',
+        'Assignment.MaxNumberCorrect': point_total,
+        'Assignment.MaxScore': point_total,
+        'Assignment.VisibleToParents': True,
+        'Assignment.ScoresVisibleToParents': True
+    }
+
+    response = requests.post(CREATE_ASSIGNMENT_URL,
+                             params={'gn': gradebook_number, 'an': assignment_id},
+                             data=data,
+                             headers=headers)
+
+    if response.status_code != 200:
+        raise ValueError(f'Assignment creation has unexpected status code: {response.status_code}')
+
+    return AeriesAssignmentData(id=assignment_id,
+                                point_total=point_total)
+
+
+def _get_form_request_verification_token(gradebook_number: str,
+                                         s_cookie: str,
+                                         request_verification_token: str) -> str:
+    params = {'gn': gradebook_number,
+              'an': 0}
+    headers = {'Cookie': f'__RequestVerificationToken={request_verification_token}; s={s_cookie}'}
+
+    response = requests.get(CREATE_ASSIGNMENT_URL, params=params, headers=headers)
+    beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+
+    return beautiful_soup.find('form').find('input', attrs={'name': '__RequestVerificationToken'}).get('value')
