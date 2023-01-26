@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 from arrow import Arrow
 from bs4 import BeautifulSoup
@@ -30,11 +31,21 @@ ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
 
 CREATE_ASSIGNMENT_URL = 'https://aeries.musd.org/gradebook/manage/assignment'
 
+UPDATE_ASSIGNMENT_GRADE_URL = 'https://aeries.musd.org/api/schools/{school_code}/gradebooks/{gradebook_id}/students/'\
+                              '{student_number}/{school_code}/scores/{assignment_number}'
+
 
 @dataclass(frozen=True)
 class AeriesAssignmentData:
     id: int
     point_total: int
+
+
+@dataclass(frozen=True)
+class AssignmentPatchData:
+    student_num: int
+    assignment_number: int
+    grade: Optional[float]
 
 
 def extract_gradebook_ids_from_html(periods: list[int],
@@ -219,3 +230,44 @@ def _get_form_request_verification_token(gradebook_number: str,
     beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
     return beautiful_soup.find('form').find('input', attrs={'name': '__RequestVerificationToken'}).get('value')
+
+
+def update_grades_in_aeries(assignment_patch_data: dict[str, list[AssignmentPatchData]],
+                            s_cookie: str) -> None:
+    for gradebook_id, patch_datas in assignment_patch_data.items():
+        for patch_data in patch_datas:
+            if patch_data.grade is None:
+                continue
+
+            _send_patch_request(gradebook_id=gradebook_id,
+                                assignment_number=patch_data.assignment_number,
+                                student_number=patch_data.student_num,
+                                grade=patch_data.grade,
+                                s_cookie=s_cookie)
+
+
+def _send_patch_request(gradebook_id: str,
+                        assignment_number: int,
+                        student_number: int,
+                        grade: float,
+                        s_cookie: str) -> None:
+    headers = {
+        'content-type': 'application/json; charset=UTF-8',
+        'cookie': f's={s_cookie}'
+    }
+
+    data = {
+        "SchoolCode": MILPITAS_SCHOOL_CODE,
+        "GradebookNumber": gradebook_id[:-2],
+        "AssignmentNumber": assignment_number,
+        "StudentNumber": student_number,
+        "Mark": grade
+    }
+
+    requests.post(UPDATE_ASSIGNMENT_GRADE_URL.format(school_code=MILPITAS_SCHOOL_CODE,
+                                                     gradebook_id=gradebook_id,
+                                                     student_number=student_number,
+                                                     assignment_number=assignment_number),
+                  params={'fieldName': 'Mark'},
+                  headers=headers,
+                  json=data)

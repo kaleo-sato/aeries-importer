@@ -1,21 +1,13 @@
 import re
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import Optional
 
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
-    extract_assignment_information_from_html, AeriesAssignmentData, create_aeries_assignment
+    extract_assignment_information_from_html, AeriesAssignmentData, create_aeries_assignment, update_grades_in_aeries, \
+    AssignmentPatchData
 from google_classroom_utils import GoogleClassroomAssignment, get_submissions
 
 
 GRADEBOOK_NUMBER_PATTERN = re.compile(r'^([0-9]+)/[A-Za-z]$')
-
-
-@dataclass(frozen=True)
-class AssignmentPatchData:
-    student_num: int
-    assignment_number: int
-    grade: Optional[float]
 
 
 def run_import(classroom_service,
@@ -46,7 +38,7 @@ def run_import(classroom_service,
         s_cookie=s_cookie
     )
 
-    _join_google_classroom_and_aeries_data(
+    assignment_patch_data = _join_google_classroom_and_aeries_data(
         periods_to_assignment_data=periods_to_assignment_data,
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
@@ -54,7 +46,9 @@ def run_import(classroom_service,
         s_cookie=s_cookie,
         request_verification_token=request_verification_token
     )
-    return None
+
+    update_grades_in_aeries(assignment_patch_data=assignment_patch_data,
+                            s_cookie=s_cookie)
 
 
 def _join_google_classroom_and_aeries_data(
@@ -64,8 +58,8 @@ def _join_google_classroom_and_aeries_data(
         periods_to_assignment_name_to_aeries_assignments: dict[int, dict[str, AeriesAssignmentData]],
         s_cookie: str,
         request_verification_token: str
-) -> dict[str, set[AssignmentPatchData]]:
-    assignment_patch_data = defaultdict(set)
+) -> dict[str, list[AssignmentPatchData]]:
+    assignment_patch_data = defaultdict(list)
     for period, google_classroom_assignments in periods_to_assignment_data.items():
         gradebook_id = periods_to_gradebook_ids[period]
 
@@ -96,8 +90,8 @@ def _join_google_classroom_and_aeries_data(
             for student_id, grade in google_classroom_assignment.submissions.items():
                 student_num = periods_to_student_ids_to_student_nums[period][student_id]
 
-                assignment_patch_data[gradebook_id].add(AssignmentPatchData(student_num=student_num,
-                                                                            assignment_number=aeries_assignment.id,
-                                                                            grade=grade))
+                assignment_patch_data[gradebook_id].append(AssignmentPatchData(student_num=student_num,
+                                                                               assignment_number=aeries_assignment.id,
+                                                                               grade=grade))
 
     return assignment_patch_data

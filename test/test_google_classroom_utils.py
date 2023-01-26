@@ -104,10 +104,14 @@ def test_get_periods_to_course_ids():
                     {'name': 'English I: SDAIE',
                      'section': 'Period 2',
                      'courseState': 'ARCHIVED',
-                     'id': 20}
+                     'id': 20},
+                    {'name': 'English I: SDAIE',
+                     'section': 'Period 3 & 4',
+                     'courseState': 'ACTIVE',
+                     'id': 30}
                     ]}
     assert _get_periods_to_course_ids(classroom_service=mock_classroom_service,
-                                      periods=[1, 2]) == {1: 10, 2: 20}
+                                      periods=[1, 2, 3]) == {1: 10, 2: 20, 3: 30}
 
 
 def test_get_periods_to_course_ids_invalid_period():

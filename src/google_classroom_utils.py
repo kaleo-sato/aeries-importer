@@ -64,7 +64,7 @@ def _get_periods_to_course_ids(classroom_service,
     :return: The period number mapped to its corresponding Course Id.
     """
     courses = classroom_service.courses().list().execute().get('courses', [])
-    valid_courses = {course['section']: course['id']
+    valid_courses = {course['section'][:len('Period 1')]: course['id']
                      for course in courses if 'Period ' in course.get('section', '')
                      and course.get('courseState') == 'ACTIVE'}
 

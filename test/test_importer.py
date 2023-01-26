@@ -1,6 +1,5 @@
 from unittest.mock import Mock, patch
 
-import pytest
 from pytest import raises
 
 from aeries_utils import AeriesAssignmentData
@@ -8,21 +7,144 @@ from google_classroom_utils import GoogleClassroomAssignment
 from importer import run_import, _join_google_classroom_and_aeries_data, AssignmentPatchData
 
 
-@pytest.mark.xfail
 def test_run_import():
     mock_classroom_service = Mock()
     periods = [1, 2]
 
-    with patch('importer._get_emails_to_grades', return_value={'email1': {'hw1': 10, 'hw2': None},
-                                                               'email2': {'hw1': 9, 'hw2': 4},
-                                                               'email3': {'hw5': 10}}) as mock_get_emails_to_grades:
-        assert run_import(classroom_service=mock_classroom_service,
-                          periods=periods,
-                          s_cookie='aeries-cookie') == {'email1': {'hw1': 10, 'hw2': None},
-                                                        'email2': {'hw1': 9, 'hw2': 4},
-                                                        'email3': {'hw5': 10}}
-        mock_get_emails_to_grades.assert_called_once_with(classroom_service=mock_classroom_service,
-                                                          periods=periods)
+    submissions = {
+        1: [GoogleClassroomAssignment(submissions={5120784: 100,
+                                                   34523: 23,
+                                                   45634: None},
+                                      assignment_name='Essay',
+                                      point_total=100,
+                                      category='Performance'),
+            GoogleClassroomAssignment(submissions={9999: 55,
+                                                   5120784: 0,
+                                                   848: None},
+                                      assignment_name='Busywork',
+                                      point_total=10,
+                                      category='Practice')],
+        2: [GoogleClassroomAssignment(submissions={33: 100,
+                                                   44: 23,
+                                                   55: None},
+                                      assignment_name='Art Project',
+                                      point_total=100,
+                                      category='Performance'),
+            GoogleClassroomAssignment(submissions={77: 55,
+                                                   88: 0,
+                                                   99: None},
+                                      assignment_name='Raising Hand',
+                                      point_total=10,
+                                      category='Participation')
+            ]
+    }
+
+    student_ids_to_student_nums = {
+        1: {
+            5120784: 1,
+            34523: 2,
+            45634: 3,
+            9999: 9,
+            848: 8
+        },
+        2: {
+            33: 10,
+            44: 11,
+            55: 12,
+            77: 13,
+            88: 14,
+            99: 15
+        }
+    }
+
+    aeries_assignment_data = {
+        1: {
+            'Essay': AeriesAssignmentData(id=100,
+                                          point_total=100),
+        }
+    }
+
+    assignment_patch_data = {
+        '111/S': [AssignmentPatchData(student_num=1,
+                                      assignment_number=100,
+                                      grade=100),
+                  AssignmentPatchData(student_num=2,
+                                      assignment_number=100,
+                                      grade=23),
+                  AssignmentPatchData(student_num=3,
+                                      assignment_number=100,
+                                      grade=None),
+                  AssignmentPatchData(student_num=9,
+                                      assignment_number=101,
+                                      grade=5),
+                  AssignmentPatchData(student_num=1,
+                                      assignment_number=101,
+                                      grade=0),
+                  AssignmentPatchData(student_num=8,
+                                      assignment_number=101,
+                                      grade=None)
+                  ],
+        '222/F': [AssignmentPatchData(student_num=10,
+                                      assignment_number=1,
+                                      grade=100),
+                  AssignmentPatchData(student_num=11,
+                                      assignment_number=1,
+                                      grade=23),
+                  AssignmentPatchData(student_num=12,
+                                      assignment_number=1,
+                                      grade=None),
+                  AssignmentPatchData(student_num=13,
+                                      assignment_number=2,
+                                      grade=55),
+                  AssignmentPatchData(student_num=14,
+                                      assignment_number=2,
+                                      grade=0),
+                  AssignmentPatchData(student_num=15,
+                                      assignment_number=2,
+                                      grade=None)
+                  ]
+    }
+
+    with patch('importer.get_submissions', return_value=submissions) as mock_submissions:
+        with patch('importer.extract_gradebook_ids_from_html',
+                   return_value={1: '111/S', 2: '222/F'}) as mock_gradebook_ids:
+            with patch('importer.extract_student_ids_to_student_nums_from_html',
+                       return_value=student_ids_to_student_nums) as mock_student_ids_to_student_nums:
+                with patch('importer.extract_assignment_information_from_html',
+                           return_value=aeries_assignment_data) as mock_extract_assignment_information:
+                    with patch('importer._join_google_classroom_and_aeries_data',
+                               return_value=assignment_patch_data) as mock_patch_data:
+                        with patch('importer.update_grades_in_aeries',
+                                   return_value=assignment_patch_data) as mock_update_grades_in_aeries:
+                            run_import(classroom_service=mock_classroom_service,
+                                       periods=periods,
+                                       s_cookie='s_cookie',
+                                       request_verification_token='token')
+
+                            mock_submissions.assert_called_once_with(classroom_service=mock_classroom_service,
+                                                                     periods=periods)
+                            mock_gradebook_ids.assert_called_once_with(periods=periods,
+                                                                       s_cookie='s_cookie')
+                            mock_student_ids_to_student_nums.assert_called_once_with(
+                                periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                s_cookie='s_cookie'
+                            )
+                            mock_extract_assignment_information.assert_called_once_with(
+                                periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                s_cookie='s_cookie'
+                            )
+                            mock_patch_data.assert_called_once_with(
+                                periods_to_assignment_data=submissions,
+                                periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                periods_to_student_ids_to_student_nums=student_ids_to_student_nums,
+                                periods_to_assignment_name_to_aeries_assignments=aeries_assignment_data,
+                                s_cookie='s_cookie',
+                                request_verification_token='token'
+                            )
+                            mock_update_grades_in_aeries.assert_called_once_with(
+                                assignment_patch_data=assignment_patch_data,
+                                s_cookie='s_cookie'
+                            )
 
 
 def test_join_google_classroom_and_aeries_data():

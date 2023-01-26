@@ -9,7 +9,8 @@ from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TA
                           STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums,
                           extract_assignment_information_from_html, AeriesAssignmentData,
                           _get_assignment_information, create_aeries_assignment, CREATE_ASSIGNMENT_URL,
-                          _get_form_request_verification_token)
+                          _get_form_request_verification_token, update_grades_in_aeries, AssignmentPatchData,
+                          _send_patch_request)
 from constants import MILPITAS_SCHOOL_CODE
 
 
@@ -400,3 +401,64 @@ def test_get_form_request_verification_token():
                 'my html',
                 'html.parser'
             )
+
+
+def test_update_grades_in_aeries():
+    assignment_patch_data = {
+        'gradebook_id1': [AssignmentPatchData(student_num=99,
+                                              assignment_number=123,
+                                              grade=68),
+                          AssignmentPatchData(student_num=99,
+                                              assignment_number=124,
+                                              grade=None)],
+        'gradebook_id2': [AssignmentPatchData(student_num=88,
+                                              assignment_number=45,
+                                              grade=33),
+                          AssignmentPatchData(student_num=99,
+                                              assignment_number=124,
+                                              grade=None)]
+    }
+
+    with patch('aeries_utils._send_patch_request') as mock_send_patch_request:
+        update_grades_in_aeries(assignment_patch_data=assignment_patch_data,
+                                s_cookie='s_cookie')
+
+        mock_send_patch_request.assert_has_calls([call(gradebook_id='gradebook_id1',
+                                                       assignment_number=123,
+                                                       student_number=99,
+                                                       grade=68,
+                                                       s_cookie='s_cookie'),
+                                                  call(gradebook_id='gradebook_id2',
+                                                       assignment_number=45,
+                                                       student_number=88,
+                                                       grade=33,
+                                                       s_cookie='s_cookie')])
+
+
+def test_send_patch_request():
+    headers = {
+        'content-type': 'application/json; charset=UTF-8',
+        'cookie': 's=s_cookie'
+    }
+
+    data = {
+        "SchoolCode": MILPITAS_SCHOOL_CODE,
+        "GradebookNumber": '12345',
+        "AssignmentNumber": 55,
+        "StudentNumber": 2212,
+        "Mark": 60
+    }
+
+    with patch('aeries_utils.requests.post') as mock_requests_post:
+        _send_patch_request(gradebook_id='12345/S',
+                            assignment_number=55,
+                            student_number=2212,
+                            grade=60,
+                            s_cookie='s_cookie')
+
+        mock_requests_post.assert_called_once_with(
+            'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
+            params={'fieldName': 'Mark'},
+            headers=headers,
+            json=data
+        )
