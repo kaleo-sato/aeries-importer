@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 from pytest import raises
 
-from aeries_utils import AeriesAssignmentData
+from aeries_utils import AeriesAssignmentData, AeriesCategory
 from google_classroom_utils import GoogleClassroomAssignment
 from importer import run_import, _join_google_classroom_and_aeries_data, AssignmentPatchData
 
@@ -105,6 +105,19 @@ def test_run_import():
                   ]
     }
 
+    periods_to_categories = {
+        1: {'Practice': AeriesCategory(id=1,
+                                       name='Practice',
+                                       weight=1.0)},
+        2: {'Practice': AeriesCategory(id=1,
+                                       name='Practice',
+                                       weight=0.5),
+            'Performance': AeriesCategory(id=2,
+                                          name='Performance',
+                                          weight=0.5)
+            }
+    }
+
     with patch('importer.get_submissions', return_value=submissions) as mock_submissions:
         with patch('importer.extract_gradebook_ids_from_html',
                    return_value={1: '111/S', 2: '222/F'}) as mock_gradebook_ids:
@@ -112,39 +125,46 @@ def test_run_import():
                        return_value=student_ids_to_student_nums) as mock_student_ids_to_student_nums:
                 with patch('importer.extract_assignment_information_from_html',
                            return_value=aeries_assignment_data) as mock_extract_assignment_information:
-                    with patch('importer._join_google_classroom_and_aeries_data',
-                               return_value=assignment_patch_data) as mock_patch_data:
-                        with patch('importer.update_grades_in_aeries',
-                                   return_value=assignment_patch_data) as mock_update_grades_in_aeries:
-                            run_import(classroom_service=mock_classroom_service,
-                                       periods=periods,
-                                       s_cookie='s_cookie',
-                                       request_verification_token='token')
+                    with patch('importer.extract_category_information',
+                               return_value=periods_to_categories) as mock_category_information:
+                        with patch('importer._join_google_classroom_and_aeries_data',
+                                   return_value=assignment_patch_data) as mock_patch_data:
+                            with patch('importer.update_grades_in_aeries',
+                                       return_value=assignment_patch_data) as mock_update_grades_in_aeries:
+                                run_import(classroom_service=mock_classroom_service,
+                                           periods=periods,
+                                           s_cookie='s_cookie',
+                                           request_verification_token='token')
 
-                            mock_submissions.assert_called_once_with(classroom_service=mock_classroom_service,
-                                                                     periods=periods)
-                            mock_gradebook_ids.assert_called_once_with(periods=periods,
-                                                                       s_cookie='s_cookie')
-                            mock_student_ids_to_student_nums.assert_called_once_with(
-                                periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                s_cookie='s_cookie'
-                            )
-                            mock_extract_assignment_information.assert_called_once_with(
-                                periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                s_cookie='s_cookie'
-                            )
-                            mock_patch_data.assert_called_once_with(
-                                periods_to_assignment_data=submissions,
-                                periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                periods_to_student_ids_to_student_nums=student_ids_to_student_nums,
-                                periods_to_assignment_name_to_aeries_assignments=aeries_assignment_data,
-                                s_cookie='s_cookie',
-                                request_verification_token='token'
-                            )
-                            mock_update_grades_in_aeries.assert_called_once_with(
-                                assignment_patch_data=assignment_patch_data,
-                                s_cookie='s_cookie'
-                            )
+                                mock_submissions.assert_called_once_with(classroom_service=mock_classroom_service,
+                                                                         periods=periods)
+                                mock_gradebook_ids.assert_called_once_with(periods=periods,
+                                                                           s_cookie='s_cookie')
+                                mock_student_ids_to_student_nums.assert_called_once_with(
+                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                    s_cookie='s_cookie'
+                                )
+                                mock_extract_assignment_information.assert_called_once_with(
+                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                    s_cookie='s_cookie'
+                                )
+                                mock_category_information.assert_called_once_with(
+                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                    s_cookie='s_cookie'
+                                )
+                                mock_patch_data.assert_called_once_with(
+                                    periods_to_assignment_data=submissions,
+                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
+                                    periods_to_student_ids_to_student_nums=student_ids_to_student_nums,
+                                    periods_to_assignment_name_to_aeries_assignments=aeries_assignment_data,
+                                    periods_to_categories=periods_to_categories,
+                                    s_cookie='s_cookie',
+                                    request_verification_token='token'
+                                )
+                                mock_update_grades_in_aeries.assert_called_once_with(
+                                    assignment_patch_data=assignment_patch_data,
+                                    s_cookie='s_cookie'
+                                )
 
 
 def test_join_google_classroom_and_aeries_data():
@@ -290,6 +310,19 @@ def test_join_google_classroom_and_aeries_data():
         2: {'hw1': AeriesAssignmentData(id=90, point_total=10)}
     }
 
+    periods_to_categories = {
+        1: {'Practice': AeriesCategory(id=1,
+                                       name='Practice',
+                                       weight=1.0)},
+        2: {'Practice': AeriesCategory(id=1,
+                                       name='Practice',
+                                       weight=0.5),
+            'Performance': AeriesCategory(id=2,
+                                          name='Performance',
+                                          weight=0.5)
+            }
+    }
+
     with raises(ValueError, match='Expected gradebook number to be of pattern <number>/<S or F>, '
                                   f'but was Bad Format/F'):
         _join_google_classroom_and_aeries_data(
@@ -297,6 +330,7 @@ def test_join_google_classroom_and_aeries_data():
             periods_to_gradebook_ids=periods_to_gradebook_ids,
             periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
             periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
+            periods_to_categories=periods_to_categories,
             s_cookie='s_cookie',
             request_verification_token='request_verification_token'
         )

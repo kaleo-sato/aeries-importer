@@ -5,7 +5,7 @@ import click
 
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
     extract_assignment_information_from_html, AeriesAssignmentData, create_aeries_assignment, update_grades_in_aeries, \
-    AssignmentPatchData
+    AssignmentPatchData, extract_category_information, AeriesCategory
 from google_classroom_utils import GoogleClassroomAssignment, get_submissions
 
 
@@ -40,11 +40,17 @@ def run_import(classroom_service,
         s_cookie=s_cookie
     )
 
+    periods_to_categories = extract_category_information(
+        periods_to_gradebook_ids=periods_to_gradebook_ids,
+        s_cookie=s_cookie
+    )
+
     assignment_patch_data = _join_google_classroom_and_aeries_data(
         periods_to_assignment_data=periods_to_assignment_data,
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
         periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
+        periods_to_categories=periods_to_categories,
         s_cookie=s_cookie,
         request_verification_token=request_verification_token
     )
@@ -58,6 +64,7 @@ def _join_google_classroom_and_aeries_data(
         periods_to_gradebook_ids: dict[int, str],
         periods_to_student_ids_to_student_nums: dict[int, dict[int, int]],
         periods_to_assignment_name_to_aeries_assignments: dict[int, dict[str, AeriesAssignmentData]],
+        periods_to_categories: dict[int, dict[str, AeriesCategory]],
         s_cookie: str,
         request_verification_token: str
 ) -> dict[str, list[AssignmentPatchData]]:
@@ -66,6 +73,7 @@ def _join_google_classroom_and_aeries_data(
     for period, google_classroom_assignments in periods_to_assignment_data.items():
         click.echo(f'\tProcessing Period {period}...')
         gradebook_id = periods_to_gradebook_ids[period]
+        categories = periods_to_categories[period]
 
         next_assignment_id = max(map(lambda x: x.id,
                                      periods_to_assignment_name_to_aeries_assignments[period].values())) + 1
@@ -84,7 +92,7 @@ def _join_google_classroom_and_aeries_data(
                                                              assignment_id=next_assignment_id,
                                                              assignment_name=assignment_name,
                                                              point_total=google_classroom_assignment.point_total,
-                                                             category=google_classroom_assignment.category,
+                                                             category=categories[google_classroom_assignment.category],
                                                              s_cookie=s_cookie,
                                                              request_verification_token=request_verification_token)
                 next_assignment_id += 1

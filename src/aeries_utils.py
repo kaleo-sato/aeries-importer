@@ -7,7 +7,7 @@ from arrow import Arrow
 from bs4 import BeautifulSoup
 import requests
 
-from constants import MILPITAS_SCHOOL_CODE, CATEGORY_TO_AERIES_NUMBER
+from constants import MILPITAS_SCHOOL_CODE
 
 GRADEBOOK_URL = 'https://aeries.musd.org/gradebook'
 GRADEBOOK_HTML_ID = 'ValidGradebookList'
@@ -30,6 +30,9 @@ ASSIGNMENT_NUMBER_TAG_NAME = 'data-an'
 ASSIGNMENT_SCORES_ROW = 'scores row'
 ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
 
+GRADEBOOK_WEIGHT_CATEGORY_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/manage'
+WEIGHT_CATEGORY_TABLE_ID = 'manageManageCategoriesTable'
+
 CREATE_ASSIGNMENT_URL = 'https://aeries.musd.org/gradebook/manage/assignment'
 
 UPDATE_ASSIGNMENT_GRADE_URL = 'https://aeries.musd.org/api/schools/{school_code}/gradebooks/{gradebook_id}/students/'\
@@ -47,6 +50,13 @@ class AssignmentPatchData:
     student_num: int
     assignment_number: int
     grade: Optional[float]
+
+
+@dataclass(frozen=True)
+class AeriesCategory:
+    name: str
+    weight: float
+    id: int
 
 
 def extract_gradebook_ids_from_html(periods: list[int],
@@ -180,11 +190,51 @@ def _get_assignment_information(beautiful_soup: BeautifulSoup) -> dict[str, Aeri
     return assignments
 
 
+def extract_category_information(periods_to_gradebook_ids: dict[int, str],
+                                 s_cookie: str) -> dict[int, dict[str, AeriesCategory]]:
+    click.echo('Fetching weight category information for gradebooks...')
+    headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+               'Cookie': f's={s_cookie}'}
+
+    periods_to_category_information = {}
+    for period, gradebook_id in periods_to_gradebook_ids.items():
+        click.echo(f'\tProcessing Period {period}...')
+        response = requests.get(GRADEBOOK_WEIGHT_CATEGORY_URL.format(gradebook_id=gradebook_id),
+                                headers=headers)
+        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+        periods_to_category_information[period] = _get_aeries_category_information(beautiful_soup=beautiful_soup)
+
+    return periods_to_category_information
+
+
+def _get_aeries_category_information(beautiful_soup: BeautifulSoup):
+    categories = {}
+    tags = (beautiful_soup
+            .find('table', id=WEIGHT_CATEGORY_TABLE_ID)
+            .find_all('input', type=['text', 'number']))
+    index = 0
+    while index < len(tags):
+        tag = tags[index]
+        category_id = int(tag.get('data-cat-value'))
+        category_name = tag.get('value')
+
+        index += 1
+        tag = tags[index]
+
+        weight = int(tag.get('value')) / 100
+        categories[category_name] = AeriesCategory(name=category_name,
+                                                   weight=weight,
+                                                   id=category_id)
+        index += 1
+
+    return categories
+
+
 def create_aeries_assignment(gradebook_number: str,
                              assignment_id: int,
                              assignment_name: str,
                              point_total: int,
-                             category: str,
+                             category: AeriesCategory,
                              s_cookie: str,
                              request_verification_token: str) -> AeriesAssignmentData:
     form_request_verification_token = _get_form_request_verification_token(
@@ -203,8 +253,8 @@ def create_aeries_assignment(gradebook_number: str,
         'SourceGradebook.Name': 'blah',
         'Assignment.AssignmentNumber': assignment_id,
         'Assignment.Description': assignment_name,
-        'Assignment.AssignmentType': 'S' if category == 'Performance' else 'F',
-        'Assignment.Category': CATEGORY_TO_AERIES_NUMBER[category],
+        'Assignment.AssignmentType': 'S' if category.name == 'Performance' else 'F',
+        'Assignment.Category': category.id,
         'Assignment.DateAssigned': f'{time.month:02d}/{time.day:02d}/{time.year}',
         'Assignment.DateDue': f'{time.month:02d}/{time.day:02d}/{time.year}',
         'Assignment.MaxNumberCorrect': point_total,
@@ -242,7 +292,7 @@ def update_grades_in_aeries(assignment_patch_data: dict[str, list[AssignmentPatc
                             s_cookie: str) -> None:
     click.echo('Updating Aeries grades...')
     for gradebook_id, patch_datas in assignment_patch_data.items():
-        click.echo(f'Processing Gradebook Number {gradebook_id}...')
+        click.echo(f'\tProcessing Gradebook Number {gradebook_id}...')
         for patch_data in patch_datas:
             if patch_data.grade is None:
                 continue
