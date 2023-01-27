@@ -1,6 +1,8 @@
 import re
 from collections import defaultdict
 
+import click
+
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
     extract_assignment_information_from_html, AeriesAssignmentData, create_aeries_assignment, update_grades_in_aeries, \
     AssignmentPatchData
@@ -59,8 +61,10 @@ def _join_google_classroom_and_aeries_data(
         s_cookie: str,
         request_verification_token: str
 ) -> dict[str, list[AssignmentPatchData]]:
+    click.echo('Matching Google Classroom grades to Aeries Assignments...')
     assignment_patch_data = defaultdict(list)
     for period, google_classroom_assignments in periods_to_assignment_data.items():
+        click.echo(f'\tProcessing Period {period}...')
         gradebook_id = periods_to_gradebook_ids[period]
 
         next_assignment_id = max(map(lambda x: x.id,

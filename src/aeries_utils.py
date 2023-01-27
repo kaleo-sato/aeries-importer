@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+import click
 from arrow import Arrow
 from bs4 import BeautifulSoup
 import requests
@@ -61,6 +62,7 @@ def extract_gradebook_ids_from_html(periods: list[int],
 
 def _get_periods_to_gradebook_and_term(periods: list[int],
                                        beautiful_soup: BeautifulSoup) -> dict[int, str]:
+    click.echo('Retrieving Aeries Gradebook ids...')
     # Parse HTML for gradebook numbers and terms, e.g. '4532451/S'
     gradebook_list_tags = beautiful_soup.find(id=GRADEBOOK_HTML_ID).find_all('li')
     gradebook_and_terms = [tag.get(GRADEBOOK_AND_TERM_TAG_NAME) for tag in gradebook_list_tags]
@@ -94,11 +96,13 @@ def _get_periods_to_gradebook_and_term(periods: list[int],
 
 def extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids: dict[int, str],
                                                   s_cookie: str) -> dict[int, dict[int, int]]:
+    click.echo('Fetching Student Numbers (not IDs!) from Aeries...')
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={s_cookie}'}
 
     periods_to_student_ids_and_student_nums = dict()
     for period, gradebook_id in periods_to_gradebook_ids.items():
+        click.echo(f'\tProcessing Period {period}...')
         response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -124,11 +128,13 @@ def _get_student_ids_to_student_nums(beautiful_soup: BeautifulSoup) -> dict[int,
 
 def extract_assignment_information_from_html(periods_to_gradebook_ids: dict[int, str],
                                              s_cookie: str) -> dict[int, dict[str, AeriesAssignmentData]]:
+    click.echo('Fetching Assignment information from Aeries...')
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={s_cookie}'}
 
     periods_to_assignment_information = dict()
     for period, gradebook_id in periods_to_gradebook_ids.items():
+        click.echo(f'\tProcessing Period {period}...')
         response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -234,7 +240,9 @@ def _get_form_request_verification_token(gradebook_number: str,
 
 def update_grades_in_aeries(assignment_patch_data: dict[str, list[AssignmentPatchData]],
                             s_cookie: str) -> None:
+    click.echo('Updating Aeries grades...')
     for gradebook_id, patch_datas in assignment_patch_data.items():
+        click.echo(f'Processing Gradebook Number {gradebook_id}...')
         for patch_data in patch_datas:
             if patch_data.grade is None:
                 continue

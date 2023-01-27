@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Optional
 
+import click
 from arrow import Arrow
 
 COURSEWORK_PAGE_SIZE = 1000
@@ -30,11 +31,13 @@ def get_submissions(classroom_service, periods: Iterable[int]) -> dict[int, list
     :param periods: The list of periods to filter for.
     :return: The submission data for the Google Classroom.
     """
+    click.echo('Retrieving assignment submissions from Google Classroom...')
     periods_to_course_ids = _get_periods_to_course_ids(classroom_service=classroom_service,
                                                        periods=periods)
 
     periods_to_assignments: dict[int, list[GoogleClassroomAssignment]] = defaultdict(list)
     for period, course_id in periods_to_course_ids.items():
+        click.echo(f'\tProcessing Period {period}...')
         user_ids_to_student_ids = _get_user_ids_to_student_ids(classroom_service=classroom_service,
                                                                course_id=course_id)
 
