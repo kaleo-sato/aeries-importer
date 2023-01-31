@@ -211,6 +211,19 @@ def test_join_google_classroom_and_aeries_data():
         2: {'hw1': AeriesAssignmentData(id=90, point_total=10)}
     }
 
+    periods_to_categories = {
+        1: {'Practice': AeriesCategory(id=1,
+                                       name='Practice',
+                                       weight=1.0)},
+        2: {'Practice': AeriesCategory(id=1,
+                                       name='Practice',
+                                       weight=0.5),
+            'Performance': AeriesCategory(id=2,
+                                          name='Performance',
+                                          weight=0.5)
+            }
+    }
+
     with patch('importer.create_aeries_assignment',
                return_value=AeriesAssignmentData(id=91, point_total=5)) as mock_create_aeries_assignment:
         assert _join_google_classroom_and_aeries_data(
@@ -218,10 +231,11 @@ def test_join_google_classroom_and_aeries_data():
             periods_to_gradebook_ids=periods_to_gradebook_ids,
             periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
             periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
+            periods_to_categories=periods_to_categories,
             s_cookie='s_cookie',
             request_verification_token='request_verification_token'
         ) == {
-            '12345/S': {
+            '12345/S': [
                 AssignmentPatchData(student_num=1000,
                                     assignment_number=80,
                                     grade=10),
@@ -237,8 +251,8 @@ def test_join_google_classroom_and_aeries_data():
                 AssignmentPatchData(student_num=3000,
                                     assignment_number=81,
                                     grade=1)
-            },
-            '6789/F': {
+            ],
+            '6789/F': [
                 AssignmentPatchData(student_num=5000,
                                     assignment_number=90,
                                     grade=10),
@@ -254,19 +268,21 @@ def test_join_google_classroom_and_aeries_data():
                 AssignmentPatchData(student_num=7000,
                                     assignment_number=91,
                                     grade=1)
-            }
+            ]
         }
 
         mock_create_aeries_assignment.assert_called_once_with(gradebook_number='6789',
                                                               assignment_id=91,
                                                               assignment_name='hw3',
                                                               point_total=5,
-                                                              category='Practice',
+                                                              category=AeriesCategory(id=1,
+                                                                                      name='Practice',
+                                                                                      weight=0.5),
                                                               s_cookie='s_cookie',
                                                               request_verification_token='request_verification_token')
 
 
-def test_join_google_classroom_and_aeries_data():
+def test_join_google_classroom_and_aeries_data_exception():
     periods_to_assignment_data = {
         1: [GoogleClassroomAssignment(submissions={1: 10, 2: None},
                                       assignment_name='hw1',
