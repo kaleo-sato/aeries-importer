@@ -294,9 +294,6 @@ def update_grades_in_aeries(assignment_patch_data: dict[str, list[AssignmentPatc
     for gradebook_id, patch_datas in assignment_patch_data.items():
         click.echo(f'\tProcessing Gradebook Number {gradebook_id}...')
         for patch_data in patch_datas:
-            if patch_data.grade is None:
-                continue
-
             _send_patch_request(gradebook_id=gradebook_id,
                                 assignment_number=patch_data.assignment_number,
                                 student_number=patch_data.student_num,
@@ -307,7 +304,7 @@ def update_grades_in_aeries(assignment_patch_data: dict[str, list[AssignmentPatc
 def _send_patch_request(gradebook_id: str,
                         assignment_number: int,
                         student_number: int,
-                        grade: float,
+                        grade: Optional[float],
                         s_cookie: str) -> None:
     headers = {
         'content-type': 'application/json; charset=UTF-8',
@@ -319,7 +316,7 @@ def _send_patch_request(gradebook_id: str,
         "GradebookNumber": gradebook_id[:-2],
         "AssignmentNumber": assignment_number,
         "StudentNumber": student_number,
-        "Mark": grade
+        "Mark": grade if grade is not None else ""
     }
 
     requests.post(UPDATE_ASSIGNMENT_GRADE_URL.format(school_code=MILPITAS_SCHOOL_CODE,
