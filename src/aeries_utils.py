@@ -311,12 +311,17 @@ def _send_patch_request(gradebook_id: str,
         'cookie': f's={s_cookie}'
     }
 
+    if grade is None:
+        grade = ''
+    elif grade == 0:
+        grade = 'MI'
+
     data = {
         "SchoolCode": MILPITAS_SCHOOL_CODE,
         "GradebookNumber": gradebook_id[:-2],
         "AssignmentNumber": assignment_number,
         "StudentNumber": student_number,
-        "Mark": grade if grade is not None else ""
+        "Mark": grade
     }
 
     requests.post(UPDATE_ASSIGNMENT_GRADE_URL.format(school_code=MILPITAS_SCHOOL_CODE,

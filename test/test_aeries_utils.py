@@ -576,3 +576,32 @@ def test_send_patch_request_empty_grade():
             headers=headers,
             json=data
         )
+
+
+def test_send_patch_request_missing_grade():
+    headers = {
+        'content-type': 'application/json; charset=UTF-8',
+        'cookie': 's=s_cookie'
+    }
+
+    data = {
+        "SchoolCode": MILPITAS_SCHOOL_CODE,
+        "GradebookNumber": '12345',
+        "AssignmentNumber": 55,
+        "StudentNumber": 2212,
+        "Mark": 'MI'
+    }
+
+    with patch('aeries_utils.requests.post') as mock_requests_post:
+        _send_patch_request(gradebook_id='12345/S',
+                            assignment_number=55,
+                            student_number=2212,
+                            grade=0,
+                            s_cookie='s_cookie')
+
+        mock_requests_post.assert_called_once_with(
+            'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
+            params={'fieldName': 'Mark'},
+            headers=headers,
+            json=data
+        )
