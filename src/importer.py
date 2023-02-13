@@ -14,15 +14,13 @@ GRADEBOOK_NUMBER_PATTERN = re.compile(r'^([0-9]+)/[A-Za-z]$')
 
 def run_import(classroom_service,
                periods: list[int],
-               s_cookie: str,
-               request_verification_token: str) -> None:
+               s_cookie: str) -> None:
     """
     Runs the logic for importing assignment grades from Google Classroom to Aeries.
 
     :param classroom_service: The Google Classroom service object.
-    :param s_cookie: The cookie for logging into Aeries.
-    :param request_verification_token: The token for sending POST requests to Aeries.
     :param periods: The list of period numbers to import grades.
+    :param s_cookie: The cookie for logging into Aeries.
     """
     periods_to_assignment_data = get_submissions(classroom_service=classroom_service,
                                                  periods=periods)
@@ -40,7 +38,7 @@ def run_import(classroom_service,
         s_cookie=s_cookie
     )
 
-    periods_to_categories = extract_category_information(
+    periods_to_categories, request_verification_token = extract_category_information(
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         s_cookie=s_cookie
     )

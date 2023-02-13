@@ -57,8 +57,7 @@ def _split_periods(periods: str) -> list[int]:
 @click.command()
 @click.option('--periods', metavar='<comma-separated-period-nums>', prompt=True)
 @click.option('--s-cookie', prompt=True)
-@click.option('--request-verification-token', prompt=True)
-def run_aeries_importer(periods: str, s_cookie: str, request_verification_token: str):
+def run_aeries_importer(periods: str, s_cookie: str):
     """
     Runs the CLI for importing grades from Google Classroom to Aeries.
     """
@@ -69,5 +68,4 @@ def run_aeries_importer(periods: str, s_cookie: str, request_verification_token:
 
     run_import(classroom_service=classroom_service,
                periods=periods_list,
-               s_cookie=s_cookie,
-               request_verification_token=request_verification_token)
+               s_cookie=s_cookie)

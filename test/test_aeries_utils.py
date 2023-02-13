@@ -273,6 +273,7 @@ def test_get_assignment_information_invalid_assignment_point_total():
 def test_extract_category_information():
     mock_response = Mock()
     mock_response.text = 'my html'
+    mock_response.cookies = {'__RequestVerificationToken': 'request'}
     mock_beautiful_soup = Mock()
     mock_beautiful_soup_2 = Mock()
 
@@ -297,7 +298,7 @@ def test_extract_category_information():
                                                           weight=0.7)}
                        ]) as mock_get_category_information:
                 assert extract_category_information(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
-                                                    s_cookie='aeries-cookie') == {
+                                                    s_cookie='aeries-cookie') == ({
                            1: {'Practice': AeriesCategory(id=1,
                                                           name='Practice',
                                                           weight=1.0)},
@@ -307,7 +308,7 @@ def test_extract_category_information():
                                'Performance': AeriesCategory(id=2,
                                                              name='Performance',
                                                              weight=0.7)}
-                       }
+                       }, 'request')
                 mock_requests_get.assert_has_calls([
                     call('https://aeries.musd.org/gradebook/123/S/manage', headers=expected_headers),
                     call('https://aeries.musd.org/gradebook/234/S/manage', headers=expected_headers)

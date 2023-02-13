@@ -126,15 +126,14 @@ def test_run_import():
                 with patch('importer.extract_assignment_information_from_html',
                            return_value=aeries_assignment_data) as mock_extract_assignment_information:
                     with patch('importer.extract_category_information',
-                               return_value=periods_to_categories) as mock_category_information:
+                               return_value=(periods_to_categories, 'token')) as mock_category_information:
                         with patch('importer._join_google_classroom_and_aeries_data',
                                    return_value=assignment_patch_data) as mock_patch_data:
                             with patch('importer.update_grades_in_aeries',
                                        return_value=assignment_patch_data) as mock_update_grades_in_aeries:
                                 run_import(classroom_service=mock_classroom_service,
                                            periods=periods,
-                                           s_cookie='s_cookie',
-                                           request_verification_token='token')
+                                           s_cookie='s_cookie')
 
                                 mock_submissions.assert_called_once_with(classroom_service=mock_classroom_service,
                                                                          periods=periods)

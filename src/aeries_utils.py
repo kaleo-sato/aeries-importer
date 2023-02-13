@@ -191,11 +191,12 @@ def _get_assignment_information(beautiful_soup: BeautifulSoup) -> dict[str, Aeri
 
 
 def extract_category_information(periods_to_gradebook_ids: dict[int, str],
-                                 s_cookie: str) -> dict[int, dict[str, AeriesCategory]]:
+                                 s_cookie: str) -> tuple[dict[int, dict[str, AeriesCategory]], str]:
     click.echo('Fetching weight category information for gradebooks...')
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={s_cookie}'}
 
+    request_verification_token = ''
     periods_to_category_information = {}
     for period, gradebook_id in periods_to_gradebook_ids.items():
         click.echo(f'\tProcessing Period {period}...')
@@ -204,7 +205,9 @@ def extract_category_information(periods_to_gradebook_ids: dict[int, str],
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
         periods_to_category_information[period] = _get_aeries_category_information(beautiful_soup=beautiful_soup)
 
-    return periods_to_category_information
+        request_verification_token = response.cookies.get('__RequestVerificationToken')
+
+    return periods_to_category_information, request_verification_token
 
 
 def _get_aeries_category_information(beautiful_soup: BeautifulSoup):
