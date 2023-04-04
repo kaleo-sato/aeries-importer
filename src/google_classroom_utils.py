@@ -128,7 +128,7 @@ def _get_all_published_coursework(classroom_service, course_id: int) -> dict[int
 
         coursework_assignments[coursework_obj['id']] = GoogleClassroomAssignment(
             submissions={},
-            assignment_name=coursework_obj['title'],
+            assignment_name=coursework_obj['title'].strip(),
             point_total=coursework_obj['maxPoints'],
             category=coursework_obj['gradeCategory']['name']
         )

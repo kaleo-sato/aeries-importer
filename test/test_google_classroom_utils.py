@@ -161,9 +161,9 @@ def test_get_user_ids_to_student_ids_invalid_email():
 def test_get_all_published_coursework():
     mock_classroom_service = Mock()
     mock_classroom_service.courses.return_value.courseWork.return_value.list.return_value.execute.return_value = {
-        'courseWork': [{'id': 10, 'title': 'Biology', 'dueDate': {'month': 6}, 'maxPoints': 10,
+        'courseWork': [{'id': 10, 'title': 'Biology ', 'dueDate': {'month': 6}, 'maxPoints': 10,
                         'gradeCategory': {'name': 'Performance'}},
-                       {'id': 20, 'title': 'Math', 'dueDate': {'month': 1}, 'maxPoints': 100,
+                       {'id': 20, 'title': ' Math  ', 'dueDate': {'month': 1}, 'maxPoints': 100,
                         'gradeCategory': {'name': 'Practice'}},
                        {'id': 30, 'title': 'Wrong', 'dueDate': {'month': 12}, 'maxPoints': 24,
                         'gradeCategory': {'name': 'Participation'}},
