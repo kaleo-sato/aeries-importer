@@ -156,17 +156,17 @@ def test_extract_assignment_information_from_html():
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
             with patch('aeries_utils._get_assignment_information',
                        side_effect=[
-                           {'a': AeriesAssignmentData(id=1, point_total=10),
-                            'b': AeriesAssignmentData(id=2, point_total=20)},
-                           {'a': AeriesAssignmentData(id=1, point_total=10),
-                            'c': AeriesAssignmentData(id=3, point_total=30)}
+                           {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
+                            'b': AeriesAssignmentData(id=2, point_total=20, category='B')},
+                           {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
+                            'c': AeriesAssignmentData(id=3, point_total=30, category='C')}
                        ]) as mock_get_assignment_information:
                 assert extract_assignment_information_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
                                                                 s_cookie='aeries-cookie') == {
-                           1: {'a': AeriesAssignmentData(id=1, point_total=10),
-                               'b': AeriesAssignmentData(id=2, point_total=20)},
-                           2: {'a': AeriesAssignmentData(id=1, point_total=10),
-                               'c': AeriesAssignmentData(id=3, point_total=30)}
+                           1: {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
+                               'b': AeriesAssignmentData(id=2, point_total=20, category='B')},
+                           2: {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
+                               'c': AeriesAssignmentData(id=3, point_total=30, category='C')}
                        }
                 mock_requests_get.assert_has_calls([
                     call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
@@ -187,19 +187,23 @@ def test_get_assignment_information():
 
     mock_assignment_desc_tag_1 = Mock()
     mock_assignment_desc_tag_1.get.return_value = '1 - Introductory Assignment'
+    mock_assignment_desc_tag_1.find.return_value.find_next_sibling.return_value = NavigableString(value='Performance')
 
     mock_assignment_tag_1 = Mock()
     mock_assignment_tag_1.find.return_value = mock_assignment_desc_tag_1
     mock_assignment_tag_1.find.return_value.find.return_value.find.return_value = NavigableString(value=' : 10')
     mock_assignment_tag_1.get.return_value = NavigableString(value='1')
+    mock_assignment_tag_1.find.return_value.find.return_value.find.return_value = NavigableString(value=' : 10')
 
     mock_assignment_desc_tag_2 = Mock()
     mock_assignment_desc_tag_2.get.return_value = '2 - The Next Assignment'
+    mock_assignment_desc_tag_2.find.return_value.find_next_sibling.return_value = NavigableString(value='Practice')
 
     mock_assignment_tag_2 = Mock()
     mock_assignment_tag_2.find.return_value = mock_assignment_desc_tag_2
     mock_assignment_tag_2.find.return_value.find.return_value.find.return_value = NavigableString(value=' : 20')
     mock_assignment_tag_2.get.return_value = NavigableString(value='2')
+
 
     mock_beautiful_soup.find.return_value.find_all.return_value = [
         mock_assignment_tag_1,
@@ -207,8 +211,8 @@ def test_get_assignment_information():
     ]
 
     assert _get_assignment_information(beautiful_soup=mock_beautiful_soup) == {
-        'Introductory Assignment': AeriesAssignmentData(id=1, point_total=10),
-        'The Next Assignment': AeriesAssignmentData(id=2, point_total=20)
+        'Introductory Assignment': AeriesAssignmentData(id=1, point_total=10, category='Performance'),
+        'The Next Assignment': AeriesAssignmentData(id=2, point_total=20, category='Practice')
     }
 
 
@@ -217,6 +221,7 @@ def test_get_assignment_information_invalid_assignment_description():
 
     mock_assignment_desc_tag_1 = Mock()
     mock_assignment_desc_tag_1.get.return_value = '1 - Introductory Assignment'
+    mock_assignment_desc_tag_1.find.return_value.find_next_sibling.return_value = NavigableString(value='Performance')
 
     mock_assignment_tag_1 = Mock()
     mock_assignment_tag_1.find.return_value = mock_assignment_desc_tag_1
@@ -225,6 +230,7 @@ def test_get_assignment_information_invalid_assignment_description():
 
     mock_assignment_desc_tag_2 = Mock()
     mock_assignment_desc_tag_2.get.return_value = 'The Next Assignment'
+    mock_assignment_desc_tag_2.find.return_value.find_next_sibling.return_value = NavigableString(value='Practice')
 
     mock_assignment_tag_2 = Mock()
     mock_assignment_tag_2.find.return_value = mock_assignment_desc_tag_2
@@ -246,6 +252,7 @@ def test_get_assignment_information_invalid_assignment_point_total():
 
     mock_assignment_desc_tag_1 = Mock()
     mock_assignment_desc_tag_1.get.return_value = '1 - Introductory Assignment'
+    mock_assignment_desc_tag_1.find.return_value.find_next_sibling.return_value = NavigableString(value='Performance')
 
     mock_assignment_tag_1 = Mock()
     mock_assignment_tag_1.find.return_value = mock_assignment_desc_tag_1
@@ -254,6 +261,7 @@ def test_get_assignment_information_invalid_assignment_point_total():
 
     mock_assignment_desc_tag_2 = Mock()
     mock_assignment_desc_tag_2.get.return_value = '2 - The Next Assignment'
+    mock_assignment_desc_tag_2.find.return_value.find_next_sibling.return_value = NavigableString(value='Practice')
 
     mock_assignment_tag_2 = Mock()
     mock_assignment_tag_2.find.return_value = mock_assignment_desc_tag_2
@@ -341,6 +349,7 @@ def test_get_aeries_category_information():
                                       weight=0.3)
     }
 
+
 def test_create_aeries_assignment():
     expected_headers = {
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -378,7 +387,7 @@ def test_create_aeries_assignment():
                                             weight=0.5),
                     s_cookie='s_cookie',
                     request_verification_token='request_verification_token'
-                ) == AeriesAssignmentData(id=24, point_total=50)
+                ) == AeriesAssignmentData(id=24, point_total=50, category='Practice')
 
                 mock_token.assert_called_once_with(gradebook_number='12345',
                                                    s_cookie='s_cookie',

@@ -23,6 +23,7 @@ SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME = 'students'
 STUDENT_ID_TAG_NAME = 'data-stuid'
 STUDENT_NUMBER_TAG_NAME = 'data-sn'
 ASSIGNMENT_DESC_CLASS_NAME = 'description row cursor-hand'
+ASSIGNMENT_CATEGORY_SEARCH_STRING = 'Category:'
 ASSIGNMENT_DESC_TAG_NAME = 'data-assignment-desc'
 ASSIGNMENT_NAME_PATTERN = r'^[0-9]+ - (.+)'
 ASSIGNMENT_POINT_TOTAL_PATTERN = r' : ([0-9]+)'
@@ -43,6 +44,7 @@ UPDATE_ASSIGNMENT_GRADE_URL = 'https://aeries.musd.org/api/schools/{school_code}
 class AeriesAssignmentData:
     id: int
     point_total: int
+    category: str
 
 
 @dataclass(frozen=True)
@@ -184,8 +186,15 @@ def _get_assignment_information(beautiful_soup: BeautifulSoup) -> dict[str, Aeri
         assignment_point_total = int(point_total_match.group(1))
         assignment_number = int(tag.get(ASSIGNMENT_NUMBER_TAG_NAME))
 
+        assignment_category = (tag
+                               .find('tr', class_=ASSIGNMENT_DESC_CLASS_NAME)
+                               .find('td', string=ASSIGNMENT_CATEGORY_SEARCH_STRING)
+                               .find_next_sibling()
+                               .string)
+
         assignments[assignment_name] = AeriesAssignmentData(id=assignment_number,
-                                                            point_total=assignment_point_total)
+                                                            point_total=assignment_point_total,
+                                                            category=assignment_category)
 
     return assignments
 
@@ -275,7 +284,8 @@ def create_aeries_assignment(gradebook_number: str,
         raise ValueError(f'Assignment creation has unexpected status code: {response.status_code}')
 
     return AeriesAssignmentData(id=assignment_id,
-                                point_total=point_total)
+                                point_total=point_total,
+                                category=category.name)
 
 
 def _get_form_request_verification_token(gradebook_number: str,

@@ -60,7 +60,8 @@ def test_run_import():
     aeries_assignment_data = {
         1: {
             'Essay': AeriesAssignmentData(id=100,
-                                          point_total=100),
+                                          point_total=100,
+                                          category='Performance'),
         }
     }
 
@@ -205,9 +206,9 @@ def test_join_google_classroom_and_aeries_data():
     }
 
     periods_to_assignment_name_to_aeries_assignments = {
-        1: {'hw1': AeriesAssignmentData(id=80, point_total=10),
-            'hw2': AeriesAssignmentData(id=81, point_total=5)},
-        2: {'hw1': AeriesAssignmentData(id=90, point_total=10)}
+        1: {'hw1': AeriesAssignmentData(id=80, point_total=10, category='Performance'),
+            'hw2': AeriesAssignmentData(id=81, point_total=5, category='Practice')},
+        2: {'hw1': AeriesAssignmentData(id=90, point_total=10, category='Performance')}
     }
 
     periods_to_categories = {
@@ -224,7 +225,9 @@ def test_join_google_classroom_and_aeries_data():
     }
 
     with patch('importer.create_aeries_assignment',
-               return_value=AeriesAssignmentData(id=91, point_total=5)) as mock_create_aeries_assignment:
+               return_value=AeriesAssignmentData(id=91,
+                                                 point_total=5,
+                                                 category='Practice')) as mock_create_aeries_assignment:
         assert _join_google_classroom_and_aeries_data(
             periods_to_assignment_data=periods_to_assignment_data,
             periods_to_gradebook_ids=periods_to_gradebook_ids,
@@ -320,9 +323,9 @@ def test_join_google_classroom_and_aeries_data_exception():
     }
 
     periods_to_assignment_name_to_aeries_assignments = {
-        1: {'hw1': AeriesAssignmentData(id=80, point_total=10),
-            'hw2': AeriesAssignmentData(id=81, point_total=5)},
-        2: {'hw1': AeriesAssignmentData(id=90, point_total=10)}
+        1: {'hw1': AeriesAssignmentData(id=80, point_total=10, category='Performance'),
+            'hw2': AeriesAssignmentData(id=81, point_total=5, category='Practice')},
+        2: {'hw1': AeriesAssignmentData(id=90, point_total=10, category='Performance')}
     }
 
     periods_to_categories = {
