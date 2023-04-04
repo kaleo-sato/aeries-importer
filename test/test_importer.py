@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 
 from pytest import raises
 
@@ -207,8 +207,8 @@ def test_join_google_classroom_and_aeries_data():
 
     periods_to_assignment_name_to_aeries_assignments = {
         1: {'hw1': AeriesAssignmentData(id=80, point_total=10, category='Performance'),
-            'hw2': AeriesAssignmentData(id=81, point_total=5, category='Practice')},
-        2: {'hw1': AeriesAssignmentData(id=90, point_total=10, category='Performance')}
+            'hw2': AeriesAssignmentData(id=81, point_total=12093810293801293812, category='Practice')},
+        2: {'hw1': AeriesAssignmentData(id=90, point_total=10, category='Something else')}
     }
 
     periods_to_categories = {
@@ -224,10 +224,16 @@ def test_join_google_classroom_and_aeries_data():
             }
     }
 
-    with patch('importer.create_aeries_assignment',
-               return_value=AeriesAssignmentData(id=91,
+    with patch('importer.patch_aeries_assignment',
+               side_effect=[AeriesAssignmentData(id=81,
                                                  point_total=5,
-                                                 category='Practice')) as mock_create_aeries_assignment:
+                                                 category='Practice'),
+                            AeriesAssignmentData(id=90,
+                                                 point_total=10,
+                                                 category='Performance'),
+                            AeriesAssignmentData(id=91,
+                                                 point_total=5,
+                                                 category='Practice')]) as mock_create_aeries_assignment:
         assert _join_google_classroom_and_aeries_data(
             periods_to_assignment_data=periods_to_assignment_data,
             periods_to_gradebook_ids=periods_to_gradebook_ids,
@@ -273,15 +279,34 @@ def test_join_google_classroom_and_aeries_data():
             ]
         }
 
-        mock_create_aeries_assignment.assert_called_once_with(gradebook_number='6789',
-                                                              assignment_id=91,
-                                                              assignment_name='hw3',
-                                                              point_total=5,
-                                                              category=AeriesCategory(id=1,
-                                                                                      name='Practice',
-                                                                                      weight=0.5),
-                                                              s_cookie='s_cookie',
-                                                              request_verification_token='request_verification_token')
+        mock_create_aeries_assignment.assert_has_calls([
+            call(gradebook_number='12345',
+                 assignment_id=81,
+                 assignment_name='hw2',
+                 point_total=5,
+                 category=AeriesCategory(id=1,
+                                         name='Practice',
+                                         weight=1.0),
+                 s_cookie='s_cookie',
+                 request_verification_token='request_verification_token'),
+            call(gradebook_number='6789',
+                 assignment_id=90,
+                 assignment_name='hw1',
+                 point_total=10,
+                 category=AeriesCategory(id=2,
+                                         name='Performance',
+                                         weight=0.5),
+                 s_cookie='s_cookie',
+                 request_verification_token='request_verification_token'),
+            call(gradebook_number='6789',
+                 assignment_id=91,
+                 assignment_name='hw3',
+                 point_total=5,
+                 category=AeriesCategory(id=1,
+                                         name='Practice',
+                                         weight=0.5),
+                 s_cookie='s_cookie',
+                 request_verification_token='request_verification_token')])
 
 
 def test_join_google_classroom_and_aeries_data_exception():

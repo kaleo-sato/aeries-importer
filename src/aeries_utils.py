@@ -242,13 +242,13 @@ def _get_aeries_category_information(beautiful_soup: BeautifulSoup):
     return categories
 
 
-def create_aeries_assignment(gradebook_number: str,
-                             assignment_id: int,
-                             assignment_name: str,
-                             point_total: int,
-                             category: AeriesCategory,
-                             s_cookie: str,
-                             request_verification_token: str) -> AeriesAssignmentData:
+def patch_aeries_assignment(gradebook_number: str,
+                            assignment_id: int,
+                            assignment_name: str,
+                            point_total: int,
+                            category: AeriesCategory,
+                            s_cookie: str,
+                            request_verification_token: str) -> AeriesAssignmentData:
     form_request_verification_token = _get_form_request_verification_token(
         gradebook_number=gradebook_number,
         s_cookie=s_cookie,

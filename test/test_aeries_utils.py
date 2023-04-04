@@ -8,7 +8,7 @@ from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TA
                           _get_periods_to_gradebook_and_term, extract_student_ids_to_student_nums_from_html,
                           STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums,
                           extract_assignment_information_from_html, AeriesAssignmentData,
-                          _get_assignment_information, create_aeries_assignment, CREATE_ASSIGNMENT_URL,
+                          _get_assignment_information, patch_aeries_assignment, CREATE_ASSIGNMENT_URL,
                           _get_form_request_verification_token, update_grades_in_aeries, AssignmentPatchData,
                           _send_patch_request, AeriesCategory, extract_category_information,
                           _get_aeries_category_information)
@@ -377,7 +377,7 @@ def test_create_aeries_assignment():
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.post') as mock_post_request:
                 mock_post_request.return_value.status_code = 200
-                assert create_aeries_assignment(
+                assert patch_aeries_assignment(
                     gradebook_number='12345',
                     assignment_id=24,
                     assignment_name='nothing',
@@ -430,7 +430,7 @@ def test_create_aeries_assignment_invalid_status_code():
                 mock_post_request.return_value.status_code = 500
 
                 with raises(ValueError, match=r'Assignment creation has unexpected status code: 500'):
-                    assert create_aeries_assignment(
+                    assert patch_aeries_assignment(
                         gradebook_number='12345',
                         assignment_id=24,
                         assignment_name='nothing',
