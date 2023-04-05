@@ -301,6 +301,7 @@ def patch_aeries_assignment(gradebook_number: str,
         request_verification_token=request_verification_token
     )
 
+    time = Arrow.now()
     headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                'Cookie': f'__RequestVerificationToken={request_verification_token}; s={s_cookie}'}
     data = {
@@ -312,6 +313,8 @@ def patch_aeries_assignment(gradebook_number: str,
         'Assignment.Description': assignment_name,
         'Assignment.AssignmentType': 'S' if category.name == 'Performance' else 'F',
         'Assignment.Category': category.id,
+        'Assignment.DateAssigned': f'{time.month:02d}/{time.day:02d}/{time.year}',
+        'Assignment.DateDue': f'{time.month:02d}/{time.day:02d}/{time.year}',
         'Assignment.MaxNumberCorrect': point_total,
         'Assignment.MaxScore': point_total,
         'Assignment.VisibleToParents': True,
