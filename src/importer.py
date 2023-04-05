@@ -5,7 +5,7 @@ import click
 
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
     extract_assignment_information_from_html, AeriesAssignmentData, update_grades_in_aeries, \
-    AssignmentPatchData, extract_category_information, AeriesCategory, patch_aeries_assignment
+    AssignmentPatchData, extract_category_information, AeriesCategory, patch_aeries_assignment, create_aeries_assignment
 from google_classroom_utils import GoogleClassroomAssignment, get_submissions
 
 
@@ -86,13 +86,13 @@ def _join_google_classroom_and_aeries_data(
                                      f'but was {gradebook_id}')
 
                 gradebook_number = gradebook_number_match.group(1)
-                aeries_assignment = patch_aeries_assignment(gradebook_number=gradebook_number,
-                                                            assignment_id=next_assignment_id,
-                                                            assignment_name=assignment_name,
-                                                            point_total=google_classroom_assignment.point_total,
-                                                            category=categories[google_classroom_assignment.category],
-                                                            s_cookie=s_cookie,
-                                                            request_verification_token=request_verification_token)
+                aeries_assignment = create_aeries_assignment(gradebook_number=gradebook_number,
+                                                             assignment_id=next_assignment_id,
+                                                             assignment_name=assignment_name,
+                                                             point_total=google_classroom_assignment.point_total,
+                                                             category=categories[google_classroom_assignment.category],
+                                                             s_cookie=s_cookie,
+                                                             request_verification_token=request_verification_token)
                 next_assignment_id += 1
             else:
                 aeries_assignment = periods_to_assignment_name_to_aeries_assignments[period][assignment_name]
