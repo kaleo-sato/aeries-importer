@@ -69,3 +69,4 @@ def run_aeries_importer(periods: str, s_cookie: str):
     run_import(classroom_service=classroom_service,
                periods=periods_list,
                s_cookie=s_cookie)
+run_aeries_importer()

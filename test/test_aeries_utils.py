@@ -11,7 +11,8 @@ from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TA
                           _get_assignment_information, create_aeries_assignment, CREATE_ASSIGNMENT_URL,
                           _get_form_request_verification_token, update_grades_in_aeries, AssignmentPatchData,
                           _send_patch_request, AeriesCategory, extract_category_information,
-                          _get_aeries_category_information, patch_aeries_assignment)
+                          _get_aeries_category_information, patch_aeries_assignment,
+                          extract_assignment_submissions_from_html, _get_assignment_submissions_information)
 from constants import MILPITAS_SCHOOL_CODE
 
 
@@ -276,6 +277,76 @@ def test_get_assignment_information_invalid_assignment_point_total():
     with raises(ValueError, match=r'Unexpected format for Aeries assignment point total: 20. '
                                   'Expected it to look like " : <Point total>"'):
         assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
+
+
+def test_extract_assignment_submissions_from_html():
+    mock_response = Mock()
+    mock_response.text = 'my html'
+    mock_beautiful_soup = Mock()
+    mock_beautiful_soup_2 = Mock()
+
+    expected_headers = {
+        'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+        'Cookie': 's=aeries-cookie'
+    }
+
+    with patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get:
+        with patch('aeries_utils.BeautifulSoup',
+                   side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
+            with patch('aeries_utils._get_assignment_submissions_information',
+                       side_effect=[
+                           {90: {200: '', 201: 'N/A', 202: '30.5', 203: 'MI'},
+                            91: {200: '', 201: 'N/A', 202: '50.5', 203: 'MI'}},
+                           {90: {300: '', 301: 'N/A', 302: '30.5', 303: 'MI'},
+                            92: {300: '', 301: '', 302: '50.5', 303: '100'}}
+                       ]) as mock_get_assignment_submissions_information:
+                assert extract_assignment_submissions_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
+                                                                s_cookie='aeries-cookie') == {
+                           1: {90: {200: '', 201: 'N/A', 202: '30.5', 203: 'MI'},
+                               91: {200: '', 201: 'N/A', 202: '50.5', 203: 'MI'}},
+                           2: {90: {300: '', 301: 'N/A', 302: '30.5', 303: 'MI'},
+                               92: {300: '', 301: '', 302: '50.5', 303: '100'}}
+                       }
+                mock_requests_get.assert_has_calls([
+                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
+                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
+                ])
+                mock_beautiful_soup_create.assert_has_calls([
+                    call('my html', 'html.parser'),
+                    call('my html', 'html.parser')
+                ])
+                mock_get_assignment_submissions_information.assert_has_calls([
+                    call(beautiful_soup=mock_beautiful_soup),
+                    call(beautiful_soup=mock_beautiful_soup_2)
+                ])
+
+
+def test_get_assignment_submissions_information():
+    mock_beautiful_soup = Mock()
+
+    mock_submission_tag_1 = Mock()
+    mock_submission_tag_1.get.side_effect = ['78', '200', 'MI']
+
+    mock_submission_tag_2 = Mock()
+    mock_submission_tag_2.get.side_effect = ['78', '201', '20.4']
+
+    mock_submission_tag_3 = Mock()
+    mock_submission_tag_3.get.side_effect = ['79', '202', '100']
+
+    mock_submission_tag_4 = Mock()
+    mock_submission_tag_4.get.side_effect = ['79', '203', '']
+
+    mock_beautiful_soup.find.return_value.find_all.return_value = [
+        mock_submission_tag_1,
+        mock_submission_tag_2,
+        mock_submission_tag_3,
+        mock_submission_tag_4
+    ]
+
+    assert _get_assignment_submissions_information(beautiful_soup=mock_beautiful_soup) == {
+        78: {200: 'MI', 201: '20.4'},
+        79: {202: '100', 203: ''}
+    }
 
 
 def test_extract_category_information():
