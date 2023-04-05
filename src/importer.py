@@ -1,13 +1,11 @@
 import re
 from collections import defaultdict
-from typing import Optional
 
 import click
 
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
     extract_assignment_information_from_html, AeriesAssignmentData, update_grades_in_aeries, \
-    AssignmentPatchData, extract_category_information, AeriesCategory, patch_aeries_assignment, \
-    create_aeries_assignment, extract_assignment_submissions_from_html
+    AssignmentPatchData, extract_category_information, AeriesCategory, patch_aeries_assignment, create_aeries_assignment
 from google_classroom_utils import GoogleClassroomAssignment, get_submissions
 
 
@@ -40,11 +38,6 @@ def run_import(classroom_service,
         s_cookie=s_cookie
     )
 
-    periods_to_assignment_id_to_aeries_submissions = extract_assignment_submissions_from_html(
-        periods_to_gradebook_ids=periods_to_gradebook_ids,
-        s_cookie=s_cookie
-    )
-
     periods_to_categories, request_verification_token = extract_category_information(
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         s_cookie=s_cookie
@@ -55,7 +48,6 @@ def run_import(classroom_service,
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
         periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
-        periods_to_assignment_id_to_aeries_submissions=periods_to_assignment_id_to_aeries_submissions,
         periods_to_categories=periods_to_categories,
         s_cookie=s_cookie,
         request_verification_token=request_verification_token
@@ -70,7 +62,6 @@ def _join_google_classroom_and_aeries_data(
         periods_to_gradebook_ids: dict[int, str],
         periods_to_student_ids_to_student_nums: dict[int, dict[int, int]],
         periods_to_assignment_name_to_aeries_assignments: dict[int, dict[str, AeriesAssignmentData]],
-        periods_to_assignment_id_to_aeries_submissions: dict[int, dict[int, dict[int, str]]],
         periods_to_categories: dict[int, dict[str, AeriesCategory]],
         s_cookie: str,
         request_verification_token: str
@@ -125,44 +116,11 @@ def _join_google_classroom_and_aeries_data(
                         s_cookie=s_cookie,
                         request_verification_token=request_verification_token)
 
-            assignment_patch_data[gradebook_id].extend(_generate_patch_data_for_assignment(
-                google_classroom_submissions=google_classroom_assignment.submissions,
-                aeries_submissions=periods_to_assignment_id_to_aeries_submissions[period].get(aeries_assignment.id, {}),
-                aeries_assignment_id=aeries_assignment.id,
-                student_ids_to_student_nums=periods_to_student_ids_to_student_nums[period]
-            ))
+            for student_id, grade in google_classroom_assignment.submissions.items():
+                student_num = periods_to_student_ids_to_student_nums[period][student_id]
+
+                assignment_patch_data[gradebook_id].append(AssignmentPatchData(student_num=student_num,
+                                                                               assignment_number=aeries_assignment.id,
+                                                                               grade=grade))
 
     return assignment_patch_data
-
-
-def _generate_patch_data_for_assignment(
-        google_classroom_submissions: dict[int, Optional[float]],
-        aeries_submissions: dict[int, str],
-        aeries_assignment_id,
-        student_ids_to_student_nums: dict[int, int]) -> list[AssignmentPatchData]:
-    patch_data = []
-    for student_id, grade in google_classroom_submissions.items():
-        student_num = student_ids_to_student_nums[student_id]
-        if len(aeries_submissions) == 0:
-            patch_data.append(AssignmentPatchData(student_num=student_num,
-                                                  assignment_number=aeries_assignment_id,
-                                                  grade=grade))
-            continue
-
-        aeries_score = aeries_submissions[student_num]
-        if grade is None:
-            if aeries_score != '':
-                patch_data.append(AssignmentPatchData(student_num=student_num,
-                                                      assignment_number=aeries_assignment_id,
-                                                      grade=grade))
-        elif grade == 0:
-            if aeries_score != 'MI':
-                patch_data.append(AssignmentPatchData(student_num=student_num,
-                                                      assignment_number=aeries_assignment_id,
-                                                      grade=grade))
-        elif aeries_score == '' or aeries_score == 'N/A' or aeries_score == 'MI' or grade != float(aeries_score):
-            patch_data.append(AssignmentPatchData(student_num=student_num,
-                                                  assignment_number=aeries_assignment_id,
-                                                  grade=grade))
-
-    return patch_data
