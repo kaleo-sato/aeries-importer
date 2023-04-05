@@ -8,10 +8,10 @@ from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TA
                           _get_periods_to_gradebook_and_term, extract_student_ids_to_student_nums_from_html,
                           STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums,
                           extract_assignment_information_from_html, AeriesAssignmentData,
-                          _get_assignment_information, create_aeries_assignment, CREATE_ASSIGNMENT_URL,
+                          _get_assignment_information, patch_aeries_assignment, CREATE_ASSIGNMENT_URL,
                           _get_form_request_verification_token, update_grades_in_aeries, AssignmentPatchData,
                           _send_patch_request, AeriesCategory, extract_category_information,
-                          _get_aeries_category_information, patch_aeries_assignment)
+                          _get_aeries_category_information)
 from constants import MILPITAS_SCHOOL_CODE
 
 
@@ -377,7 +377,7 @@ def test_create_aeries_assignment():
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.post') as mock_post_request:
                 mock_post_request.return_value.status_code = 200
-                assert create_aeries_assignment(
+                assert patch_aeries_assignment(
                     gradebook_number='12345',
                     assignment_id=24,
                     assignment_name='nothing',
@@ -430,7 +430,7 @@ def test_create_aeries_assignment_invalid_status_code():
                 mock_post_request.return_value.status_code = 500
 
                 with raises(ValueError, match=r'Assignment creation has unexpected status code: 500'):
-                    assert create_aeries_assignment(
+                    assert patch_aeries_assignment(
                         gradebook_number='12345',
                         assignment_id=24,
                         assignment_name='nothing',
@@ -452,102 +452,6 @@ def test_create_aeries_assignment_invalid_status_code():
                     data=expected_data,
                     headers=expected_headers
                 )
-
-def test_patch_aeries_assignment():
-    expected_headers = {
-        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Cookie': f'__RequestVerificationToken=request_verification_token; s=s_cookie'
-    }
-
-    expected_data = {
-        '__RequestVerificationToken': 'mock_token',
-        'Assignment.GradebookNumber': '12345',
-        'SourceGradebook.SchoolCode': MILPITAS_SCHOOL_CODE,
-        'SourceGradebook.Name': 'blah',
-        'Assignment.AssignmentNumber': 24,
-        'Assignment.Description': 'nothing',
-        'Assignment.AssignmentType': 'F',
-        'Assignment.Category': 1,
-        'Assignment.MaxNumberCorrect': 50,
-        'Assignment.MaxScore': 50,
-        'Assignment.VisibleToParents': True,
-        'Assignment.ScoresVisibleToParents': True
-    }
-
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
-        with patch('aeries_utils.requests.put') as mock_put_request:
-            mock_put_request.return_value.status_code = 200
-            assert patch_aeries_assignment(
-                gradebook_number='12345',
-                assignment_id=24,
-                assignment_name='nothing',
-                point_total=50,
-                category=AeriesCategory(name='Practice',
-                                        id=1,
-                                        weight=0.5),
-                s_cookie='s_cookie',
-                request_verification_token='request_verification_token'
-            ) == AeriesAssignmentData(id=24, point_total=50, category='Practice')
-
-            mock_token.assert_called_once_with(gradebook_number='12345',
-                                               s_cookie='s_cookie',
-                                               request_verification_token='request_verification_token')
-            mock_put_request.assert_called_once_with(
-                CREATE_ASSIGNMENT_URL,
-                params={'gn': '12345', 'an': 24},
-                data=expected_data,
-                headers=expected_headers
-            )
-
-
-def test_patch_aeries_assignment_invalid_status_code():
-    expected_headers = {
-        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Cookie': f'__RequestVerificationToken=request_verification_token; s=s_cookie'
-    }
-
-    expected_data = {
-        '__RequestVerificationToken': 'mock_token',
-        'Assignment.GradebookNumber': '12345',
-        'SourceGradebook.SchoolCode': MILPITAS_SCHOOL_CODE,
-        'SourceGradebook.Name': 'blah',
-        'Assignment.AssignmentNumber': 24,
-        'Assignment.Description': 'nothing',
-        'Assignment.AssignmentType': 'F',
-        'Assignment.Category': 1,
-        'Assignment.MaxNumberCorrect': 50,
-        'Assignment.MaxScore': 50,
-        'Assignment.VisibleToParents': True,
-        'Assignment.ScoresVisibleToParents': True
-    }
-
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
-        with patch('aeries_utils.requests.put') as mock_put_request:
-            mock_put_request.return_value.status_code = 500
-
-            with raises(ValueError, match=r'Assignment update has unexpected status code: 500'):
-                assert patch_aeries_assignment(
-                    gradebook_number='12345',
-                    assignment_id=24,
-                    assignment_name='nothing',
-                    point_total=50,
-                    category=AeriesCategory(name='Practice',
-                                            id=1,
-                                            weight=0.4),
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token'
-                )
-
-            mock_token.assert_called_once_with(gradebook_number='12345',
-                                               s_cookie='s_cookie',
-                                               request_verification_token='request_verification_token')
-            mock_put_request.assert_called_once_with(
-                CREATE_ASSIGNMENT_URL,
-                params={'gn': '12345', 'an': 24},
-                data=expected_data,
-                headers=expected_headers
-            )
-
 
 
 def test_get_form_request_verification_token():

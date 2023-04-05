@@ -242,13 +242,13 @@ def _get_aeries_category_information(beautiful_soup: BeautifulSoup):
     return categories
 
 
-def create_aeries_assignment(gradebook_number: str,
-                             assignment_id: int,
-                             assignment_name: str,
-                             point_total: int,
-                             category: AeriesCategory,
-                             s_cookie: str,
-                             request_verification_token: str) -> AeriesAssignmentData:
+def patch_aeries_assignment(gradebook_number: str,
+                            assignment_id: int,
+                            assignment_name: str,
+                            point_total: int,
+                            category: AeriesCategory,
+                            s_cookie: str,
+                            request_verification_token: str) -> AeriesAssignmentData:
     form_request_verification_token = _get_form_request_verification_token(
         gradebook_number=gradebook_number,
         s_cookie=s_cookie,
@@ -282,49 +282,6 @@ def create_aeries_assignment(gradebook_number: str,
 
     if response.status_code != 200:
         raise ValueError(f'Assignment creation has unexpected status code: {response.status_code}')
-
-    return AeriesAssignmentData(id=assignment_id,
-                                point_total=point_total,
-                                category=category.name)
-
-
-def patch_aeries_assignment(gradebook_number: str,
-                            assignment_id: int,
-                            assignment_name: str,
-                            point_total: int,
-                            category: AeriesCategory,
-                            s_cookie: str,
-                            request_verification_token: str) -> AeriesAssignmentData:
-    form_request_verification_token = _get_form_request_verification_token(
-        gradebook_number=gradebook_number,
-        s_cookie=s_cookie,
-        request_verification_token=request_verification_token
-    )
-
-    headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-               'Cookie': f'__RequestVerificationToken={request_verification_token}; s={s_cookie}'}
-    data = {
-        '__RequestVerificationToken': form_request_verification_token,
-        'Assignment.GradebookNumber': gradebook_number,
-        'SourceGradebook.SchoolCode': MILPITAS_SCHOOL_CODE,
-        'SourceGradebook.Name': 'blah',
-        'Assignment.AssignmentNumber': assignment_id,
-        'Assignment.Description': assignment_name,
-        'Assignment.AssignmentType': 'S' if category.name == 'Performance' else 'F',
-        'Assignment.Category': category.id,
-        'Assignment.MaxNumberCorrect': point_total,
-        'Assignment.MaxScore': point_total,
-        'Assignment.VisibleToParents': True,
-        'Assignment.ScoresVisibleToParents': True
-    }
-
-    response = requests.put(CREATE_ASSIGNMENT_URL,
-                            params={'gn': gradebook_number, 'an': assignment_id},
-                            data=data,
-                            headers=headers)
-
-    if response.status_code != 200:
-        raise ValueError(f'Assignment update has unexpected status code: {response.status_code}')
 
     return AeriesAssignmentData(id=assignment_id,
                                 point_total=point_total,
