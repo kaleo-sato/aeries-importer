@@ -22,6 +22,7 @@ SCORES_BY_CLASS_ASSIGNMENT_NAME_CLASS_NAME = 'scores-by-class-override'
 SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME = 'students'
 STUDENT_ID_TAG_NAME = 'data-stuid'
 STUDENT_NUMBER_TAG_NAME = 'data-sn'
+SCORE_TAG_NAME = 'data-original-value'
 ASSIGNMENT_DESC_CLASS_NAME = 'description row cursor-hand'
 ASSIGNMENT_CATEGORY_SEARCH_STRING = 'Category:'
 ASSIGNMENT_DESC_TAG_NAME = 'data-assignment-desc'
@@ -30,6 +31,7 @@ ASSIGNMENT_POINT_TOTAL_PATTERN = r' : ([0-9]+)'
 ASSIGNMENT_NUMBER_TAG_NAME = 'data-an'
 ASSIGNMENT_SCORES_ROW = 'scores row'
 ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
+ASSIGNMENT_SUBMISSION_CLASS_ROW_TAG_NAME = 'cell text-center hidden-text cell-by-class'
 
 GRADEBOOK_WEIGHT_CATEGORY_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/manage'
 WEIGHT_CATEGORY_TABLE_ID = 'manageManageCategoriesTable'
@@ -197,6 +199,49 @@ def _get_assignment_information(beautiful_soup: BeautifulSoup) -> dict[str, Aeri
                                                             category=assignment_category)
 
     return assignments
+
+
+def extract_assignment_submissions_from_html(periods_to_gradebook_ids: dict[int, str],
+                                             s_cookie: str) -> dict[int, dict[int, dict[int, str]]]:
+    """
+    Returns a mapping of period -> assignment_id -> student_num -> score
+    """
+    click.echo('Fetching Assignment submissions from Aeries...')
+    headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+               'Cookie': f's={s_cookie}'}
+
+    periods_to_assignment_information = dict()
+    for period, gradebook_id in periods_to_gradebook_ids.items():
+        click.echo(f'\tProcessing Period {period}...')
+        response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
+        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+
+        periods_to_assignment_information[period] = _get_assignment_submissions_information(
+            beautiful_soup=beautiful_soup
+        )
+
+    return periods_to_assignment_information
+
+
+def _get_assignment_submissions_information(beautiful_soup: BeautifulSoup) -> dict[int, dict[int, str]]:
+    """
+    Returns a mapping of assignment_id -> student_num -> score
+    """
+    assignment_submissions = {}
+    for tag in (beautiful_soup
+                .find('table', class_='assignments')
+                .find_all('td', attrs={'data-stusc': MILPITAS_SCHOOL_CODE})):
+        assignment_number = int(tag.get(ASSIGNMENT_NUMBER_TAG_NAME))
+
+        student_number = int(tag.get(STUDENT_NUMBER_TAG_NAME))
+        score = tag.get(SCORE_TAG_NAME)
+
+        if assignment_number not in assignment_submissions:
+            assignment_submissions[assignment_number] = {}
+
+        assignment_submissions[assignment_number][student_number] = score
+
+    return assignment_submissions
 
 
 def extract_category_information(periods_to_gradebook_ids: dict[int, str],
