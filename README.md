@@ -6,6 +6,7 @@ Import grades from Google Classroom to Aeries.
 * Have Kaleo add your email to the [list of test users](https://console.cloud.google.com/apis/credentials/consent?authuser=1&project=aeries-importer).
   * This is to enable Google authentication for Google Classroom.
 * Download the credentials.json file from the Google Cloud application (talk to Kaleo again if needed).
+* [Create and install CLI through Click/Setuptools](https://click.palletsprojects.com/en/8.1.x/setuptools/#testing-the-script)
 
 ## Disclaimer:
 I developed this with many frail assumptions about the data format in mind. The Aeries API is limited to IT department

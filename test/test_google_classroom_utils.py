@@ -137,14 +137,21 @@ def test_get_periods_to_course_ids_invalid_period():
 
 def test_get_user_ids_to_student_ids():
     mock_classroom_service = Mock()
-    mock_classroom_service.courses.return_value.students.return_value.list.return_value.execute.return_value = {
-        'students': [{'userId': 33, 'profile': {'emailAddress': 'ab12345@student.musd.org'}},
-                     {'userId': 51, 'profile': {'emailAddress': 'un902934@student.musd.org'}}]
-    }
+    mock_classroom_service.courses.return_value.students.return_value.list.return_value.execute.side_effect = [
+        {
+            'students': [{'userId': 33, 'profile': {'emailAddress': 'ab12345@student.musd.org'}},
+                         {'userId': 51, 'profile': {'emailAddress': 'un902934@student.musd.org'}}],
+            'nextPageToken': 'next_page_token'
+        },
+        {
+            'students': [{'userId': 99, 'profile': {'emailAddress': 'np783273@student.musd.org'}}]
+        },
+    ]
 
     assert _get_user_ids_to_student_ids(classroom_service=mock_classroom_service, course_id=11) == {
         33: 12345,
-        51: 902934
+        51: 902934,
+        99: 783273
     }
 
 

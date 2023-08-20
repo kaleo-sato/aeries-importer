@@ -89,18 +89,27 @@ def _get_user_ids_to_student_ids(classroom_service, course_id: int) -> dict[int,
     :param course_id: The Course Id to fetch student emails from.
     :return: The student user id mapped to their student id.
     """
-    students = classroom_service.courses().students().list(courseId=course_id).execute().get('students', [])
     user_ids_to_student_ids: dict[int, int] = {}
+    query = classroom_service.courses().students().list(courseId=course_id).execute()
+    students = query.get('students', [])
 
-    for student in students:
-        email = student['profile']['emailAddress']
-        google_id = student['userId']
+    while True:
+        for student in students:
+            email = student['profile']['emailAddress']
+            google_id = student['userId']
 
-        match = EMAIL_ADDRESS_PATTERN_COMPILE.match(email)
+            match = EMAIL_ADDRESS_PATTERN_COMPILE.match(email)
 
-        if not match:
-            raise ValueError(f'Student email address is in an unexpected format: {email}')
-        user_ids_to_student_ids[google_id] = int(match.group(1))
+            if not match:
+                raise ValueError(f'Student email address is in an unexpected format: {email}')
+            user_ids_to_student_ids[google_id] = int(match.group(1))
+
+        next_page_token = query.get('nextPageToken')
+        if next_page_token:
+            query = classroom_service.courses().students().list(courseId=course_id, pageToken=next_page_token).execute()
+            students = query.get('students', [])
+        else:
+            break
     return user_ids_to_student_ids
 
 
