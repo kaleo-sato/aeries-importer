@@ -3,6 +3,7 @@ Import grades from Google Classroom to Aeries.
 
 ## Prerequisites:
 * Python 3
+* Pip
 * virutalenv
 * Have Kaleo add your email to the [list of test users](https://console.cloud.google.com/apis/credentials/consent?authuser=1&project=aeries-importer).
   * This is to enable Google authentication for Google Classroom.
@@ -11,12 +12,17 @@ Import grades from Google Classroom to Aeries.
   * Determine which active courses actually belong to you and contain student work that needs to be imported
   * Link a specific period to the correct gradebook an Aeries
 * I recommend to [install Bash](https://www.howtogeek.com/249966/how-to-install-and-use-the-linux-bash-shell-on-windows-10/) if you are using Windows.
+  * Install pip: `sudo apt update` and `sudo apt install python3-pip`
+  * Set default browser and path to executable:
+    * `export BROWSER="/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"`
+    * `export PATH="$PATH:/home/cung/.local/bin"`
 
 ## Setup Instructions
 1. Change directories to the `aeries-importer` top level directory. Save the `credentials.json` file here.
 2. `python3 -m venv .venv`
-3. `. .venv/bin/activate`
-4. `pip install --editable .`
+3. `pip install -r requirements.txt`
+4. `. .venv/bin/activate`
+5. `pip install --editable .`
 
 Run the program by specifying period numbers in a comma-separated list. Login to Aeries on Chrome. Then: Right click > Inspect. Go to the Application tab at the top of the console, and click the cookies for Aeries. In the table of values, there should be a row with the Name `s`, and a sequence of characters as its value. Copy that value and use specify it in the command as such:
 `aeries-importer --periods 1,2,4 --s-cookie abcd1234edfg`
