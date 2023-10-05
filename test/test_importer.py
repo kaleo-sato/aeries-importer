@@ -1,10 +1,11 @@
 from unittest.mock import Mock, patch, call
 
-from pytest import raises
+from pytest import mark, raises
 
 from aeries_utils import AeriesAssignmentData, AeriesCategory
 from google_classroom_utils import GoogleClassroomAssignment
-from importer import run_import, _join_google_classroom_and_aeries_data, AssignmentPatchData
+from importer import run_import, _join_google_classroom_and_aeries_data, AssignmentPatchData, \
+    _generate_patch_data_for_assignment
 
 
 def test_run_import():
@@ -474,7 +475,7 @@ def test_join_google_classroom_and_aeries_data_exception():
     }
 
     with raises(ValueError, match='Expected gradebook number to be of pattern <number>/<S or F>, '
-                                  f'but was Bad Format/F'):
+                                  'but was Bad Format/F'):
         with patch('importer._generate_patch_data_for_assignment',
                    side_effect=[[
                        AssignmentPatchData(student_num=1000,
@@ -538,3 +539,88 @@ def test_join_google_classroom_and_aeries_data_exception():
                          3: 7000
                      })
             ])
+
+
+@mark.parametrize('google_classroom_submissions,aeries_submissions,student_ids_to_student_nums,'
+                  'expected_assignment_patch_data', (
+        ({1: None, 2: None}, {1000: '', 2000: '10', 3000: 'MI'}, {1: 1000, 2: 2000, 3: 3000},
+         [
+             AssignmentPatchData(student_num=2000,
+                                 assignment_number=80,
+                                 grade=None)
+         ]),
+        ({1: 3, 2: 0, 3: 0}, {1000: '', 3000: '3', 2000: 'MI'}, {1: 1000, 2: 2000, 3: 3000},
+         [
+             AssignmentPatchData(student_num=1000,
+                                 assignment_number=80,
+                                 grade=3),
+             AssignmentPatchData(student_num=3000,
+                                 assignment_number=80,
+                                 grade=0)
+         ]),
+        ({1: 3, 2: 10, 3: 20, 4: 30, 5: 50}, {1000: '', 2000: 'N/A', 3000: 'MI', 4000: '10', 5000: 50},
+         {1: 1000, 2: 2000, 3: 3000, 4: 4000, 5: 5000},
+         [
+             AssignmentPatchData(student_num=1000,
+                                 assignment_number=80,
+                                 grade=3),
+             AssignmentPatchData(student_num=2000,
+                                 assignment_number=80,
+                                 grade=10),
+             AssignmentPatchData(student_num=3000,
+                                 assignment_number=80,
+                                 grade=20),
+             AssignmentPatchData(student_num=4000,
+                                 assignment_number=80,
+                                 grade=30)
+         ]),
+        ({1: 0, 2: 10, 3: 20}, {}, {1: 1000, 2: 2000, 3: 3000},
+         [
+             AssignmentPatchData(student_num=1000,
+                                 assignment_number=80,
+                                 grade=0),
+             AssignmentPatchData(student_num=2000,
+                                 assignment_number=80,
+                                 grade=10),
+             AssignmentPatchData(student_num=3000,
+                                 assignment_number=80,
+                                 grade=20)
+         ])))
+def test_generate_patch_data_for_assignment(google_classroom_submissions,
+                                            aeries_submissions,
+                                            student_ids_to_student_nums,
+                                            expected_assignment_patch_data):
+    assignment_patch_data = _generate_patch_data_for_assignment(
+        google_classroom_submissions=google_classroom_submissions,
+        aeries_submissions=aeries_submissions,
+        aeries_assignment_id=80,
+        student_ids_to_student_nums=student_ids_to_student_nums,
+    )
+
+    assert assignment_patch_data == expected_assignment_patch_data
+
+
+def test_generate_patch_data_for_assignment_exception():
+    google_classroom_submissions = {
+        1000: 10,
+        2: None
+    }
+
+    student_ids_to_student_nums = {
+        1: 1000,
+        2: 2000,
+        3: 3000
+    }
+
+    aeries_submissions = {
+        1000: '', 2000: 'N/A', 3000: 'MI'
+    }
+
+    with raises(ValueError, match='Student id 1000 found in Google Classroom who is not enrolled in the Aeries '
+                                  'roster. Please check Aeries if there needs to be a student added to the class.'):
+        _generate_patch_data_for_assignment(
+            google_classroom_submissions=google_classroom_submissions,
+            aeries_submissions=aeries_submissions,
+            aeries_assignment_id=80,
+            student_ids_to_student_nums=student_ids_to_student_nums,
+        )

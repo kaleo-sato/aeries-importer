@@ -143,6 +143,10 @@ def _generate_patch_data_for_assignment(
         student_ids_to_student_nums: dict[int, int]) -> list[AssignmentPatchData]:
     patch_data = []
     for student_id, grade in google_classroom_submissions.items():
+        if student_id not in student_ids_to_student_nums:
+            raise ValueError(f'Student id {student_id} found in Google Classroom who is not enrolled in the Aeries '
+                             'roster. Please check Aeries if there needs to be a student added to the class.')
+
         student_num = student_ids_to_student_nums[student_id]
         if len(aeries_submissions) == 0:
             patch_data.append(AssignmentPatchData(student_num=student_num,
