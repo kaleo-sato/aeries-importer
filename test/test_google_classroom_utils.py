@@ -175,7 +175,8 @@ def test_get_all_published_coursework():
                        {'id': 30, 'title': 'Wrong', 'dueDate': {'month': 12}, 'maxPoints': 24,
                         'gradeCategory': {'name': 'Participation'}},
                        {'id': 40, 'title': 'Wrong', 'dueDate': {'month': 11}, 'maxPoints': 10,
-                        'gradeCategory': {'name': 'Performance'}}]
+                        'gradeCategory': {'name': 'Performance'}},
+                       {'id': 50, 'title': 'Skip this', 'dueDate': {'month': 4}, 'gradeCategory': {'name': 'Practice'}}]
     }
 
     with patch('google_classroom_utils.Arrow.now', return_value=Arrow(year=2018, month=3, day=7)) as mock_arrow_now:

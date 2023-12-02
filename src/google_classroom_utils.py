@@ -135,6 +135,11 @@ def _get_all_published_coursework(classroom_service, course_id: int) -> dict[int
         if not _is_current_semester(coursework_obj['dueDate']['month']):
             break
 
+        # This is possible if an assignment has a point value and students submit, but then the assignment later is
+        # changed to Ungraded.
+        if 'maxPoints' not in coursework_obj:
+            continue
+
         coursework_assignments[coursework_obj['id']] = GoogleClassroomAssignment(
             submissions={},
             assignment_name=coursework_obj['title'].strip(),
