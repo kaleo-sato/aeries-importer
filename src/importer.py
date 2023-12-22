@@ -6,12 +6,12 @@ import click
 
 from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to_student_nums_from_html, \
     extract_assignment_information_from_html, AeriesAssignmentData, update_grades_in_aeries, \
-    AssignmentPatchData, extract_category_information, AeriesCategory, patch_aeries_assignment, \
-    create_aeries_assignment, extract_assignment_submissions_from_html
+    AssignmentPatchData, extract_gradebook_information_from_html, patch_aeries_assignment, \
+    create_aeries_assignment, extract_assignment_submissions_from_html, AeriesClassroomData
 from google_classroom_utils import GoogleClassroomAssignment, get_submissions
 
 
-GRADEBOOK_NUMBER_PATTERN = re.compile(r'^([0-9]+)/[A-Za-z]$')
+GRADEBOOK_NUMBER_PATTERN = re.compile(r'^([0-9]+)/([F|S])$')
 
 
 def run_import(classroom_service,
@@ -45,7 +45,7 @@ def run_import(classroom_service,
         s_cookie=s_cookie
     )
 
-    periods_to_categories, request_verification_token = extract_category_information(
+    periods_to_classroom_data, request_verification_token = extract_gradebook_information_from_html(
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         s_cookie=s_cookie
     )
@@ -56,7 +56,7 @@ def run_import(classroom_service,
         periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
         periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
         periods_to_assignment_ids_to_aeries_submissions=periods_to_assignment_ids_to_aeries_submissions,
-        periods_to_categories=periods_to_categories,
+        periods_to_classroom_data=periods_to_classroom_data,
         s_cookie=s_cookie,
         request_verification_token=request_verification_token
     )
@@ -71,7 +71,7 @@ def _join_google_classroom_and_aeries_data(
         periods_to_student_ids_to_student_nums: dict[int, dict[int, int]],
         periods_to_assignment_name_to_aeries_assignments: dict[int, dict[str, AeriesAssignmentData]],
         periods_to_assignment_ids_to_aeries_submissions: dict[int, dict[int, dict[int, str]]],
-        periods_to_categories: dict[int, dict[str, AeriesCategory]],
+        periods_to_classroom_data: dict[int, AeriesClassroomData],
         s_cookie: str,
         request_verification_token: str
 ) -> dict[str, list[AssignmentPatchData]]:
@@ -80,7 +80,8 @@ def _join_google_classroom_and_aeries_data(
     for period, google_classroom_assignments in periods_to_assignment_data.items():
         click.echo(f'\tProcessing Period {period}...')
         gradebook_id = periods_to_gradebook_ids[period]
-        categories = periods_to_categories[period]
+        categories = periods_to_classroom_data[period].categories
+        end_term_dates = periods_to_classroom_data[period].end_term_dates
 
         next_assignment_id = max(map(lambda x: x.id,
                                      periods_to_assignment_name_to_aeries_assignments[period].values())) + 1
@@ -95,11 +96,13 @@ def _join_google_classroom_and_aeries_data(
                                      f'but was {gradebook_id}')
 
                 gradebook_number = gradebook_number_match.group(1)
+                term_letter = gradebook_number_match.group(2)
                 aeries_assignment = create_aeries_assignment(gradebook_number=gradebook_number,
                                                              assignment_id=next_assignment_id,
                                                              assignment_name=assignment_name,
                                                              point_total=google_classroom_assignment.point_total,
                                                              category=categories[google_classroom_assignment.category],
+                                                             end_term_date=end_term_dates[term_letter],
                                                              s_cookie=s_cookie,
                                                              request_verification_token=request_verification_token)
                 next_assignment_id += 1
@@ -115,6 +118,7 @@ def _join_google_classroom_and_aeries_data(
                                          f'but was {gradebook_id}')
 
                     gradebook_number = gradebook_number_match.group(1)
+                    term_letter = gradebook_number_match.group(2)
 
                     aeries_assignment = patch_aeries_assignment(
                         gradebook_number=gradebook_number,
@@ -122,6 +126,7 @@ def _join_google_classroom_and_aeries_data(
                         assignment_name=assignment_name,
                         point_total=google_classroom_assignment.point_total,
                         category=categories[google_classroom_assignment.category],
+                        end_term_date=end_term_dates[term_letter],
                         s_cookie=s_cookie,
                         request_verification_token=request_verification_token)
 

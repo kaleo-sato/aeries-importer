@@ -1,8 +1,9 @@
 from unittest.mock import Mock, patch, call
 
+from arrow import Arrow
 from pytest import mark, raises
 
-from aeries_utils import AeriesAssignmentData, AeriesCategory
+from aeries_utils import AeriesAssignmentData, AeriesCategory, AeriesClassroomData
 from google_classroom_utils import GoogleClassroomAssignment
 from importer import run_import, _join_google_classroom_and_aeries_data, AssignmentPatchData, \
     _generate_patch_data_for_assignment
@@ -120,17 +121,22 @@ def test_run_import():
                   ]
     }
 
-    periods_to_categories = {
-        1: {'Practice': AeriesCategory(id=1,
-                                       name='Practice',
-                                       weight=1.0)},
-        2: {'Practice': AeriesCategory(id=1,
-                                       name='Practice',
-                                       weight=0.5),
-            'Performance': AeriesCategory(id=2,
-                                          name='Performance',
-                                          weight=0.5)
-            }
+    periods_to_classroom_data = {
+        1: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=1.0)},
+            end_term_dates={'F': Arrow(2022, 1, 22)}
+        ),
+        2: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=0.5),
+                        'Performance': AeriesCategory(id=2,
+                                                      name='Performance',
+                                                      weight=0.5)},
+            end_term_dates={'F': Arrow(2022, 1, 22), 'S': Arrow(2022, 6, 4)}
+        )
     }
 
     with patch('importer.get_submissions', return_value=submissions) as mock_submissions:
@@ -142,8 +148,8 @@ def test_run_import():
                            return_value=aeries_assignment_data) as mock_extract_assignment_information:
                     with patch('importer.extract_assignment_submissions_from_html',
                                return_value=aeries_submission_data) as mock_extract_assignment_submissions:
-                        with patch('importer.extract_category_information',
-                                   return_value=(periods_to_categories, 'token')) as mock_category_information:
+                        with patch('importer.extract_gradebook_information_from_html',
+                                   return_value=(periods_to_classroom_data, 'token')) as mock_classroom_information:
                             with patch('importer._join_google_classroom_and_aeries_data',
                                        return_value=assignment_patch_data) as mock_patch_data:
                                 with patch('importer.update_grades_in_aeries',
@@ -168,7 +174,7 @@ def test_run_import():
                                     periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
                                     s_cookie='s_cookie'
                                 )
-                                mock_category_information.assert_called_once_with(
+                                mock_classroom_information.assert_called_once_with(
                                     periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
                                     s_cookie='s_cookie'
                                 )
@@ -178,7 +184,7 @@ def test_run_import():
                                     periods_to_student_ids_to_student_nums=student_ids_to_student_nums,
                                     periods_to_assignment_name_to_aeries_assignments=aeries_assignment_data,
                                     periods_to_assignment_ids_to_aeries_submissions=aeries_submission_data,
-                                    periods_to_categories=periods_to_categories,
+                                    periods_to_classroom_data=periods_to_classroom_data,
                                     s_cookie='s_cookie',
                                     request_verification_token='token'
                                 )
@@ -238,17 +244,30 @@ def test_join_google_classroom_and_aeries_data():
         2: {90: {6000: '10'}}
     }
 
-    periods_to_categories = {
-        1: {'Practice': AeriesCategory(id=1,
-                                       name='Practice',
-                                       weight=1.0)},
-        2: {'Practice': AeriesCategory(id=1,
-                                       name='Practice',
-                                       weight=0.5),
-            'Performance': AeriesCategory(id=2,
-                                          name='Performance',
-                                          weight=0.5)
+    periods_to_classroom_data = {
+        1: AeriesClassroomData(
+            categories={
+                'Practice': AeriesCategory(id=1,
+                                           name='Practice',
+                                           weight=1.0)},
+            end_term_dates={
+                'F': Arrow(2022, 1, 22),
+                'S': Arrow(2022, 6, 4)
             }
+        ),
+        2: AeriesClassroomData(
+            categories={
+                'Practice': AeriesCategory(id=1,
+                                           name='Practice',
+                                           weight=0.5),
+                'Performance': AeriesCategory(id=2,
+                                              name='Performance',
+                                              weight=0.5)},
+            end_term_dates={
+                'F': Arrow(2022, 1, 22),
+                'S': Arrow(2022, 6, 4)
+            }
+        )
     }
 
     with patch('importer.create_aeries_assignment',
@@ -304,7 +323,7 @@ def test_join_google_classroom_and_aeries_data():
                     periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
                     periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
                     periods_to_assignment_ids_to_aeries_submissions=aeries_submission_data,
-                    periods_to_categories=periods_to_categories,
+                    periods_to_classroom_data=periods_to_classroom_data,
                     s_cookie='s_cookie',
                     request_verification_token='request_verification_token'
                 ) == {
@@ -352,6 +371,7 @@ def test_join_google_classroom_and_aeries_data():
                     category=AeriesCategory(id=1,
                                             name='Practice',
                                             weight=0.5),
+                    end_term_date=Arrow(2022, 1, 22),
                     s_cookie='s_cookie',
                     request_verification_token='request_verification_token')
 
@@ -363,6 +383,7 @@ def test_join_google_classroom_and_aeries_data():
                          category=AeriesCategory(id=1,
                                                  name='Practice',
                                                  weight=1.0),
+                         end_term_date=Arrow(2022, 6, 4),
                          s_cookie='s_cookie',
                          request_verification_token='request_verification_token'),
                     call(gradebook_number='6789',
@@ -372,6 +393,7 @@ def test_join_google_classroom_and_aeries_data():
                          category=AeriesCategory(id=2,
                                                  name='Performance',
                                                  weight=0.5),
+                         end_term_date=Arrow(2022, 1, 22),
                          s_cookie='s_cookie',
                          request_verification_token='request_verification_token')])
 
@@ -461,17 +483,22 @@ def test_join_google_classroom_and_aeries_data_exception():
         2: {90: {6000: '10'}}
     }
 
-    periods_to_categories = {
-        1: {'Practice': AeriesCategory(id=1,
-                                       name='Practice',
-                                       weight=1.0)},
-        2: {'Practice': AeriesCategory(id=1,
-                                       name='Practice',
-                                       weight=0.5),
-            'Performance': AeriesCategory(id=2,
-                                          name='Performance',
-                                          weight=0.5)
-            }
+    periods_to_classroom_data = {
+        1: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=1.0)},
+            end_term_dates={'F': Arrow(2022, 1, 22)}
+        ),
+        2: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=0.5),
+                        'Performance': AeriesCategory(id=2,
+                                                      name='Performance',
+                                                      weight=0.5)},
+            end_term_dates={'F': Arrow(2022, 1, 22), 'S': Arrow(2022, 6, 4)}
+        )
     }
 
     with raises(ValueError, match='Expected gradebook number to be of pattern <number>/<S or F>, '
@@ -508,7 +535,7 @@ def test_join_google_classroom_and_aeries_data_exception():
                 periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
                 periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
                 periods_to_assignment_ids_to_aeries_submissions=aeries_submission_data,
-                periods_to_categories=periods_to_categories,
+                periods_to_classroom_data=periods_to_classroom_data,
                 s_cookie='s_cookie',
                 request_verification_token='request_verification_token'
             )

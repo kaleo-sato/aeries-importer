@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from itertools import zip_longest
 from typing import Optional
 
 import click
@@ -33,8 +34,11 @@ ASSIGNMENT_SCORES_ROW = 'scores row'
 ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
 ASSIGNMENT_SUBMISSION_CLASS_ROW_TAG_NAME = 'cell text-center hidden-text cell-by-class'
 
-GRADEBOOK_WEIGHT_CATEGORY_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/manage'
+GRADEBOOK_INFORMATION_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/manage'
 WEIGHT_CATEGORY_TABLE_ID = 'manageManageCategoriesTable'
+END_TERMS_TABLE_ID = 'manageTerms'
+GRADEBOOK_TERM_ID = 'gradebook-term-desc'
+END_TERMS_END_DATE_ID = 'term-end-date'
 
 CREATE_ASSIGNMENT_URL = 'https://aeries.musd.org/gradebook/manage/assignment'
 
@@ -61,6 +65,12 @@ class AeriesCategory:
     name: str
     weight: float
     id: int
+
+
+@dataclass(frozen=True)
+class AeriesClassroomData:
+    categories: dict[str, AeriesCategory]
+    end_term_dates: dict[str, Arrow]
 
 
 def extract_gradebook_ids_from_html(periods: list[int],
@@ -244,27 +254,33 @@ def _get_assignment_submissions_information(beautiful_soup: BeautifulSoup) -> di
     return assignment_submissions
 
 
-def extract_category_information(periods_to_gradebook_ids: dict[int, str],
-                                 s_cookie: str) -> tuple[dict[int, dict[str, AeriesCategory]], str]:
-    click.echo('Fetching weight category information for gradebooks...')
+def extract_gradebook_information_from_html(periods_to_gradebook_ids: dict[int, str],
+                                            s_cookie: str) -> tuple[dict[int, AeriesClassroomData], str]:
+    click.echo('Fetching Gradebook information (weights and term end dates) for gradebooks...')
     headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                'Cookie': f's={s_cookie}'}
 
     request_verification_token = ''
-    periods_to_category_information = {}
+    periods_to_gradebook_information = {}
     for period, gradebook_id in periods_to_gradebook_ids.items():
         click.echo(f'\tProcessing Period {period}...')
-        response = requests.get(GRADEBOOK_WEIGHT_CATEGORY_URL.format(gradebook_id=gradebook_id),
+        response = requests.get(GRADEBOOK_INFORMATION_URL.format(gradebook_id=gradebook_id),
                                 headers=headers)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
-        periods_to_category_information[period] = _get_aeries_category_information(beautiful_soup=beautiful_soup)
+        categories = _get_aeries_category_information(beautiful_soup=beautiful_soup)
+        end_term_dates = _get_aeries_end_term_information(beautiful_soup=beautiful_soup)
+
+        periods_to_gradebook_information[period] = AeriesClassroomData(
+            categories=categories,
+            end_term_dates=end_term_dates
+        )
 
         request_verification_token = response.cookies.get('__RequestVerificationToken')
 
-    return periods_to_category_information, request_verification_token
+    return periods_to_gradebook_information, request_verification_token
 
 
-def _get_aeries_category_information(beautiful_soup: BeautifulSoup):
+def _get_aeries_category_information(beautiful_soup: BeautifulSoup) -> dict[str, AeriesCategory]:
     categories = {}
     tags = (beautiful_soup
             .find('table', id=WEIGHT_CATEGORY_TABLE_ID)
@@ -287,11 +303,27 @@ def _get_aeries_category_information(beautiful_soup: BeautifulSoup):
     return categories
 
 
+def _get_aeries_end_term_information(beautiful_soup: BeautifulSoup) -> dict[str, Arrow]:
+    end_term_information = {}
+    term_table = beautiful_soup.find('table', class_=END_TERMS_TABLE_ID)
+    term_names = term_table.find_all('input', class_=GRADEBOOK_TERM_ID)
+    term_end_dates = term_table.find_all('td', class_=END_TERMS_END_DATE_ID)
+
+    for term_name, term_end_date in zip_longest(term_names, term_end_dates):
+        end_term_information[term_name.get('value')[0]] = Arrow.strptime(
+            term_end_date.find('input').get('value').split(' ')[0],
+            '%m/%d/%Y',
+            'US/Pacific'
+        )
+    return end_term_information
+
+
 def create_aeries_assignment(gradebook_number: str,
                              assignment_id: int,
                              assignment_name: str,
                              point_total: int,
                              category: AeriesCategory,
+                             end_term_date: Arrow,
                              s_cookie: str,
                              request_verification_token: str) -> AeriesAssignmentData:
     form_request_verification_token = _get_form_request_verification_token(
@@ -301,6 +333,9 @@ def create_aeries_assignment(gradebook_number: str,
     )
 
     time = Arrow.now()
+    if time >= end_term_date:
+        time = end_term_date.shift(days=-1)
+
     headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                'Cookie': f'__RequestVerificationToken={request_verification_token}; s={s_cookie}'}
     data = {
@@ -338,6 +373,7 @@ def patch_aeries_assignment(gradebook_number: str,
                             assignment_name: str,
                             point_total: int,
                             category: AeriesCategory,
+                            end_term_date: Arrow,
                             s_cookie: str,
                             request_verification_token: str) -> AeriesAssignmentData:
     form_request_verification_token = _get_form_request_verification_token(
@@ -347,6 +383,9 @@ def patch_aeries_assignment(gradebook_number: str,
     )
 
     time = Arrow.now()
+    if time >= end_term_date:
+        time = end_term_date.shift(days=-1)
+
     headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                'Cookie': f'__RequestVerificationToken={request_verification_token}; s={s_cookie}'}
     data = {
