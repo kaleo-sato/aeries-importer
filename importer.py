@@ -8,7 +8,7 @@ from aeries_utils import extract_gradebook_ids_from_html, extract_student_ids_to
     extract_assignment_information_from_html, AeriesAssignmentData, update_grades_in_aeries, \
     AssignmentPatchData, extract_gradebook_information_from_html, patch_aeries_assignment, \
     create_aeries_assignment, extract_assignment_submissions_from_html, AeriesClassroomData
-from google_classroom_utils import GoogleClassroomAssignment, get_submissions, get_student_name
+from google_classroom_utils import GoogleClassroomAssignment, GoogleClassroomData
 
 GRADEBOOK_NUMBER_PATTERN = re.compile(r'^([0-9]+)/([F|S])$')
 
@@ -23,8 +23,8 @@ def run_import(classroom_service,
     :param periods: The list of period numbers to import grades.
     :param s_cookie: The cookie for logging into Aeries.
     """
-    periods_to_assignment_data = get_submissions(classroom_service=classroom_service,
-                                                 periods=periods)
+    google_classroom_data = GoogleClassroomData(periods=periods, classroom_service=classroom_service)
+    google_classroom_data.get_submissions()
 
     periods_to_gradebook_ids = extract_gradebook_ids_from_html(periods=periods,
                                                                s_cookie=s_cookie)
@@ -50,8 +50,7 @@ def run_import(classroom_service,
     )
 
     assignment_patch_data = _join_google_classroom_and_aeries_data(
-        classroom_service=classroom_service,
-        periods_to_assignment_data=periods_to_assignment_data,
+        google_classroom_data=google_classroom_data,
         periods_to_gradebook_ids=periods_to_gradebook_ids,
         periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
         periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
@@ -66,8 +65,7 @@ def run_import(classroom_service,
 
 
 def _join_google_classroom_and_aeries_data(
-        classroom_service,
-        periods_to_assignment_data: dict[int, list[GoogleClassroomAssignment]],
+        google_classroom_data: GoogleClassroomData,
         periods_to_gradebook_ids: dict[int, str],
         periods_to_student_ids_to_student_nums: dict[int, dict[int, int]],
         periods_to_assignment_name_to_aeries_assignments: dict[int, dict[str, AeriesAssignmentData]],
@@ -78,7 +76,7 @@ def _join_google_classroom_and_aeries_data(
 ) -> dict[str, list[AssignmentPatchData]]:
     click.echo('Matching Google Classroom grades to Aeries Assignments...')
     assignment_patch_data = defaultdict(list)
-    for period, google_classroom_assignments in periods_to_assignment_data.items():
+    for period, google_classroom_assignments in google_classroom_data.periods_to_assignments.items():
         click.echo(f'\tProcessing Period {period}...')
         gradebook_id = periods_to_gradebook_ids[period]
         categories = periods_to_classroom_data[period].categories
@@ -132,7 +130,7 @@ def _join_google_classroom_and_aeries_data(
                         request_verification_token=request_verification_token)
 
             assignment_patch_data[gradebook_id].extend(_generate_patch_data_for_assignment(
-                classroom_service=classroom_service,
+                google_classroom_data=google_classroom_data,
                 google_classroom_submissions=google_classroom_assignment.submissions,
                 aeries_submissions=periods_to_assignment_ids_to_aeries_submissions[period]
                     .get(aeries_assignment.id, {}),
@@ -144,7 +142,7 @@ def _join_google_classroom_and_aeries_data(
 
 
 def _generate_patch_data_for_assignment(
-        classroom_service,
+        google_classroom_data: GoogleClassroomData,
         google_classroom_submissions: dict[int, Optional[float]],
         aeries_submissions: dict[int, str],
         aeries_assignment_id,
@@ -152,8 +150,7 @@ def _generate_patch_data_for_assignment(
     patch_data = []
     for student_id, grade in google_classroom_submissions.items():
         if student_id not in student_ids_to_student_nums:
-            student_name = get_student_name(classroom_service=classroom_service,
-                                            student_id=student_id)
+            student_name = google_classroom_data.get_student_name(student_id=student_id)
             raise ValueError(f'Student {student_name} found in Google Classroom who is not enrolled in the Aeries '
                              'roster. Please check Aeries if they need to added to the class, or if they should be '
                              'dropped from the Google Classroom roster.')

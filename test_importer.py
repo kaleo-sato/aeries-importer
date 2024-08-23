@@ -139,7 +139,9 @@ def test_run_import():
         )
     }
 
-    with patch('importer.get_submissions', return_value=submissions) as mock_submissions:
+    with patch('importer.GoogleClassroomData') as mock_google_classroom_data:
+        mock_google_classroom_data.return_value.periods_to_assignments = submissions
+
         with patch('importer.extract_gradebook_ids_from_html',
                    return_value={1: '111/S', 2: '222/F'}) as mock_gradebook_ids:
             with patch('importer.extract_student_ids_to_student_nums_from_html',
@@ -158,8 +160,11 @@ def test_run_import():
                                                periods=periods,
                                                s_cookie='s_cookie')
 
-                                mock_submissions.assert_called_once_with(classroom_service=mock_classroom_service,
-                                                                         periods=periods)
+                                mock_google_classroom_data.assert_called_once_with(
+                                    periods=periods,
+                                    classroom_service=mock_classroom_service
+                                )
+                                mock_google_classroom_data.return_value.get_submissions.assert_called_once()
                                 mock_gradebook_ids.assert_called_once_with(periods=periods,
                                                                            s_cookie='s_cookie')
                                 mock_student_ids_to_student_nums.assert_called_once_with(
@@ -179,8 +184,7 @@ def test_run_import():
                                     s_cookie='s_cookie'
                                 )
                                 mock_patch_data.assert_called_once_with(
-                                    classroom_service=mock_classroom_service,
-                                    periods_to_assignment_data=submissions,
+                                    google_classroom_data=mock_google_classroom_data.return_value,
                                     periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
                                     periods_to_student_ids_to_student_nums=student_ids_to_student_nums,
                                     periods_to_assignment_name_to_aeries_assignments=aeries_assignment_data,
@@ -215,6 +219,9 @@ def test_join_google_classroom_and_aeries_data():
                                       point_total=5,
                                       category='Practice')]
     }
+
+    mock_google_classroom_data = Mock()
+    mock_google_classroom_data.periods_to_assignments = periods_to_assignment_data
 
     periods_to_gradebook_ids = {
         1: '12345/S',
@@ -320,8 +327,7 @@ def test_join_google_classroom_and_aeries_data():
                                                grade=1)
                        ]]) as mock_generate_patch_data_for_assignment:
                 assert _join_google_classroom_and_aeries_data(
-                    classroom_service=mock_classroom_service,
-                    periods_to_assignment_data=periods_to_assignment_data,
+                    google_classroom_data=mock_google_classroom_data,
                     periods_to_gradebook_ids=periods_to_gradebook_ids,
                     periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
                     periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
@@ -401,7 +407,7 @@ def test_join_google_classroom_and_aeries_data():
                          request_verification_token='request_verification_token')])
 
                 mock_generate_patch_data_for_assignment.assert_has_calls([
-                    call(classroom_service=mock_classroom_service,
+                    call(google_classroom_data=mock_google_classroom_data,
                          google_classroom_submissions={1: 10, 2: None},
                          aeries_submissions={1000: '', 2000: 'N/A', 3000: 'MI'},
                          aeries_assignment_id=80,
@@ -410,7 +416,7 @@ def test_join_google_classroom_and_aeries_data():
                              2: 2000,
                              3: 3000
                          }),
-                    call(classroom_service=mock_classroom_service,
+                    call(google_classroom_data=mock_google_classroom_data,
                          google_classroom_submissions={1: 3, 2: 4, 3: 1},
                          aeries_submissions={3000: '3', 2000: '4'},
                          aeries_assignment_id=81,
@@ -419,7 +425,7 @@ def test_join_google_classroom_and_aeries_data():
                              2: 2000,
                              3: 3000
                          }),
-                    call(classroom_service=mock_classroom_service,
+                    call(google_classroom_data=mock_google_classroom_data,
                          google_classroom_submissions={1: 10, 2: None},
                          aeries_submissions={6000: '10'},
                          aeries_assignment_id=90,
@@ -428,7 +434,7 @@ def test_join_google_classroom_and_aeries_data():
                              2: 6000,
                              3: 7000
                          }),
-                    call(classroom_service=mock_classroom_service,
+                    call(google_classroom_data=mock_google_classroom_data,
                          google_classroom_submissions={1: 3, 2: 4, 3: 1},
                          aeries_submissions={},
                          aeries_assignment_id=91,
@@ -460,6 +466,9 @@ def test_join_google_classroom_and_aeries_data_exception():
                                       point_total=5,
                                       category='Practice')]
     }
+
+    mock_google_classroom_data = Mock()
+    mock_google_classroom_data.periods_to_assignments = periods_to_assignment_data
 
     periods_to_gradebook_ids = {
         1: '12345/S',
@@ -538,8 +547,7 @@ def test_join_google_classroom_and_aeries_data_exception():
                                            grade=None)
                    ]]) as mock_generate_patch_data_for_assignment:
             _join_google_classroom_and_aeries_data(
-                classroom_service=mock_classroom_service,
-                periods_to_assignment_data=periods_to_assignment_data,
+                google_classroom_data=mock_google_classroom_data,
                 periods_to_gradebook_ids=periods_to_gradebook_ids,
                 periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
                 periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
@@ -550,7 +558,7 @@ def test_join_google_classroom_and_aeries_data_exception():
             )
 
             mock_generate_patch_data_for_assignment.assert_has_calls([
-                call(classroom_service=mock_classroom_service,
+                call(google_classroom_data=mock_google_classroom_data,
                      google_classroom_submissions={1: 10, 2: None},
                      aeries_submissions={1000: '', 2000: 'N/A', 3000: 'MI'},
                      aeries_assignment_id=80,
@@ -559,7 +567,7 @@ def test_join_google_classroom_and_aeries_data_exception():
                          2: 2000,
                          3: 3000
                      }),
-                call(classroom_service=mock_classroom_service,
+                call(google_classroom_data=mock_google_classroom_data,
                      google_classroom_submissions={1: 3, 2: 4, 3: 1},
                      aeries_submissions={3000: '3', 2000: '4'},
                      aeries_assignment_id=81,
@@ -568,7 +576,7 @@ def test_join_google_classroom_and_aeries_data_exception():
                          2: 2000,
                          3: 3000
                      }),
-                call(classroom_service=mock_classroom_service,
+                call(google_classroom_data=mock_google_classroom_data,
                      google_classroom_submissions={1: 10, 2: None},
                      aeries_submissions={6000: '10'},
                      aeries_assignment_id=90,
@@ -629,9 +637,10 @@ def test_generate_patch_data_for_assignment(google_classroom_submissions,
                                             aeries_submissions,
                                             student_ids_to_student_nums,
                                             expected_assignment_patch_data):
-    mock_classroom_service = Mock()
+    mock_google_classroom_data = Mock()
+
     assignment_patch_data = _generate_patch_data_for_assignment(
-        classroom_service=mock_classroom_service,
+        google_classroom_data=mock_google_classroom_data,
         google_classroom_submissions=google_classroom_submissions,
         aeries_submissions=aeries_submissions,
         aeries_assignment_id=80,
@@ -642,7 +651,6 @@ def test_generate_patch_data_for_assignment(google_classroom_submissions,
 
 
 def test_generate_patch_data_for_assignment_exception():
-    mock_classroom_service = Mock()
     google_classroom_submissions = {
         1000: 10,
         2: None
@@ -658,16 +666,17 @@ def test_generate_patch_data_for_assignment_exception():
         1000: '', 2000: 'N/A', 3000: 'MI'
     }
 
-    with patch('importer.get_student_name', return_value='John Doe') as mock_get_student_name:
+    with patch('importer.GoogleClassroomData') as mock_google_classroom_data:
+        mock_google_classroom_data.get_student_name.return_value = 'John Doe'
+
         with raises(ValueError, match='Student John Doe found in Google Classroom who is not enrolled in the Aeries '
                                       'roster. Please check Aeries if they need to added to the class, or if they '
                                       'should be dropped from the Google Classroom roster.'):
             _generate_patch_data_for_assignment(
-                classroom_service=mock_classroom_service,
+                google_classroom_data=mock_google_classroom_data,
                 google_classroom_submissions=google_classroom_submissions,
                 aeries_submissions=aeries_submissions,
                 aeries_assignment_id=80,
                 student_ids_to_student_nums=student_ids_to_student_nums,
             )
-        mock_get_student_name.assert_called_once_with(classroom_service=mock_classroom_service,
-                                                      student_id=1000)
+        mock_google_classroom_data.get_student_name.assert_called_once_with(student_id=1000)

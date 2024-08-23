@@ -3,45 +3,45 @@ from unittest.mock import Mock, patch, call
 from arrow import Arrow
 from pytest import raises
 
-from google_classroom_utils import _get_periods_to_course_ids, _get_user_ids_to_student_ids, \
-    _get_all_published_coursework, _get_grades_for_coursework, get_submissions, GoogleClassroomAssignment, \
-    get_student_name
+from google_classroom_utils import GoogleClassroomAssignment, GoogleClassroomData
 
 
 def test_get_submissions():
     mock_classroom_service = Mock()
     periods = [1, 2]
 
-    with patch('google_classroom_utils._get_periods_to_course_ids',
-               return_value={1: 10, 2: 20}) as mock_get_periods_to_course_ids:
-        with patch('google_classroom_utils._get_user_ids_to_student_ids',
-                   side_effect=[{100: 11, 200: 22}, {300: 33, 400: 44}]) as mock_get_user_ids_to_student_ids:
-            with patch('google_classroom_utils._get_all_published_coursework',
-                       side_effect=[{1000: GoogleClassroomAssignment(submissions={},
-                                                                     assignment_name='hw1',
-                                                                     point_total=10,
-                                                                     category='Performance'),
-                                     2000: GoogleClassroomAssignment(submissions={},
-                                                                     assignment_name='hw2',
-                                                                     point_total=5,
-                                                                     category='Practice')
-                                     },
-                                    {1000: GoogleClassroomAssignment(submissions={},
-                                                                     assignment_name='hw10',
-                                                                     point_total=10,
-                                                                     category='Performance'),
-                                     2000: GoogleClassroomAssignment(submissions={},
-                                                                     assignment_name='hw20',
-                                                                     point_total=5,
-                                                                     category='Practice')
-                                     }]) as mock_get_all_published_coursework:
-                with patch('google_classroom_utils._get_grades_for_coursework',
-                           side_effect=[{100: 10, 200: 10},
-                                        {100: None, 200: 5},
-                                        {300: 9, 400: 9},
-                                        {300: None, 400: 6}]) as mock_get_grades_for_coursework:
-                    assert get_submissions(classroom_service=mock_classroom_service,
-                                           periods=periods) == {
+    google_classroom_data = GoogleClassroomData(periods=periods, classroom_service=mock_classroom_service)
+
+    with patch.object(google_classroom_data, '_get_periods_to_course_ids',
+                      return_value={1: 10, 2: 20}) as mock_get_periods_to_course_ids:
+        with patch.object(google_classroom_data, '_get_user_ids_to_student_ids',
+                          side_effect=[{100: 11, 200: 22}, {300: 33, 400: 44}]) as mock_get_user_ids_to_student_ids:
+            with patch.object(google_classroom_data, '_get_all_published_coursework',
+                              side_effect=[{1000: GoogleClassroomAssignment(submissions={},
+                                                                            assignment_name='hw1',
+                                                                            point_total=10,
+                                                                            category='Performance'),
+                                            2000: GoogleClassroomAssignment(submissions={},
+                                                                            assignment_name='hw2',
+                                                                            point_total=5,
+                                                                            category='Practice')
+                                            },
+                                           {1000: GoogleClassroomAssignment(submissions={},
+                                                                            assignment_name='hw10',
+                                                                            point_total=10,
+                                                                            category='Performance'),
+                                            2000: GoogleClassroomAssignment(submissions={},
+                                                                            assignment_name='hw20',
+                                                                            point_total=5,
+                                                                            category='Practice')
+                                            }]) as mock_get_all_published_coursework:
+                with patch.object(google_classroom_data, '_get_grades_for_coursework',
+                                  side_effect=[{100: 10, 200: 10},
+                                               {100: None, 200: 5},
+                                               {300: 9, 400: 9},
+                                               {300: None, 400: 6}]) as mock_get_grades_for_coursework:
+                    google_classroom_data.get_submissions()
+                    assert google_classroom_data.periods_to_assignments == {
                         1: [GoogleClassroomAssignment(submissions={11: 10, 22: 10},
                                                       assignment_name='hw1',
                                                       point_total=10,
@@ -60,27 +60,18 @@ def test_get_submissions():
                                                       category='Practice')]
                     }
 
-                    mock_get_periods_to_course_ids.assert_called_once_with(classroom_service=mock_classroom_service,
-                                                                           periods=periods)
-                    mock_get_user_ids_to_student_ids.assert_has_calls([call(classroom_service=mock_classroom_service,
-                                                                            course_id=10),
-                                                                       call(classroom_service=mock_classroom_service,
-                                                                            course_id=20)])
-                    mock_get_all_published_coursework.assert_has_calls([call(classroom_service=mock_classroom_service,
-                                                                             course_id=10),
-                                                                        call(classroom_service=mock_classroom_service,
-                                                                             course_id=20)])
-                    mock_get_grades_for_coursework.assert_has_calls([call(classroom_service=mock_classroom_service,
-                                                                          course_id=10,
+                    mock_get_periods_to_course_ids.assert_called_once_with()
+                    mock_get_user_ids_to_student_ids.assert_has_calls([call(course_id=10),
+                                                                       call(course_id=20)])
+                    mock_get_all_published_coursework.assert_has_calls([call(course_id=10),
+                                                                        call(course_id=20)])
+                    mock_get_grades_for_coursework.assert_has_calls([call(course_id=10,
                                                                           coursework_id=1000),
-                                                                     call(classroom_service=mock_classroom_service,
-                                                                          course_id=10,
+                                                                     call(course_id=10,
                                                                           coursework_id=2000),
-                                                                     call(classroom_service=mock_classroom_service,
-                                                                          course_id=20,
+                                                                     call(course_id=20,
                                                                           coursework_id=1000),
-                                                                     call(classroom_service=mock_classroom_service,
-                                                                          course_id=20,
+                                                                     call(course_id=20,
                                                                           coursework_id=2000)])
 
 
@@ -111,8 +102,9 @@ def test_get_periods_to_course_ids():
                      'courseState': 'ACTIVE',
                      'id': 30}
                     ]}
-    assert _get_periods_to_course_ids(classroom_service=mock_classroom_service,
-                                      periods=[1, 2, 3]) == {1: 10, 2: 20, 3: 30}
+
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
+    assert google_classroom_data._get_periods_to_course_ids() == {1: 10, 2: 20, 3: 30}
 
 
 def test_get_periods_to_course_ids_invalid_period():
@@ -131,9 +123,9 @@ def test_get_periods_to_course_ids_invalid_period():
                      'courseState': 'ACTIVE',
                      'id': 20}]}
 
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
     with raises(ValueError, match=r'Period 3 is not a valid period number.'):
-        _get_periods_to_course_ids(classroom_service=mock_classroom_service,
-                                   periods=[1, 2, 3])
+        google_classroom_data._get_periods_to_course_ids()
 
 
 def test_get_user_ids_to_student_ids():
@@ -149,7 +141,8 @@ def test_get_user_ids_to_student_ids():
         },
     ]
 
-    assert _get_user_ids_to_student_ids(classroom_service=mock_classroom_service, course_id=11) == {
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
+    assert google_classroom_data._get_user_ids_to_student_ids(course_id=11) == {
         33: 12345,
         51: 902934,
         99: 783273
@@ -162,8 +155,9 @@ def test_get_user_ids_to_student_ids_invalid_email():
         'students': [{'userId': 33, 'profile': {'emailAddress': 'asdf5@gmail.com'}}]
     }
 
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
     with raises(ValueError, match=r'Student email address is in an unexpected format: asdf5@gmail.com'):
-        _get_user_ids_to_student_ids(classroom_service=mock_classroom_service, course_id=11)
+        google_classroom_data._get_user_ids_to_student_ids(course_id=11)
 
 
 def test_get_all_published_coursework():
@@ -180,8 +174,10 @@ def test_get_all_published_coursework():
                        {'id': 50, 'title': 'Skip this', 'dueDate': {'month': 4}, 'gradeCategory': {'name': 'Practice'}}]
     }
 
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
+
     with patch('google_classroom_utils.Arrow.now', return_value=Arrow(year=2018, month=3, day=7)) as mock_arrow_now:
-        assert _get_all_published_coursework(classroom_service=mock_classroom_service, course_id=11) == {
+        assert google_classroom_data._get_all_published_coursework(course_id=11) == {
             10: GoogleClassroomAssignment(submissions={},
                                           assignment_name='Biology',
                                           point_total=10,
@@ -207,9 +203,9 @@ def test_get_grades_for_coursework():
                                {'userId': 20}]
     }
 
-    assert _get_grades_for_coursework(classroom_service=mock_classroom_service,
-                                      course_id=11,
-                                      coursework_id=33) == {10: 20.3, 20: None}
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
+    assert google_classroom_data._get_grades_for_coursework(course_id=11,
+                                                            coursework_id=33) == {10: 20.3, 20: None}
 
 
 def test_get_student_name():
@@ -223,6 +219,5 @@ def test_get_student_name():
         }
     }
 
-    assert get_student_name(classroom_service=mock_classroom_service,
-                            student_id=100) == 'John Doe'
-
+    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
+    assert google_classroom_data.get_student_name(student_id=100) == 'John Doe'
