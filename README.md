@@ -34,6 +34,7 @@ Run the program by specifying period numbers in a comma-separated list. Login to
 * Always spend the 5-10 extra minutes to manually check if the grades are consistent after importing. You may catch honest grading errors in Google Classroom, e.g. the classic 95/10 error instead of 9.5/10. These errors are easier to spot on Aeries since extra credit scores are highlighted in green.
 * It is recommended to import frequently as opposed to procrastinating until many assignments need to be imported. This should reduce the number of assignments you need to manually audit in case a student's grade is different on Google Classroom and Aeries.
 * You can also login to the Training Sandbox on Aeries to import grades there as a test run. Simply choose that Database instead of the Milpitas USD one before logging into Aeries and obtaining the s-cookie.
+* Excused Assignments are not supported by the Google Classroom API, and will import as whatever score you had previously returned to the student. To truly import this assignment as an empty grade, return an empty score on Google Classroom before marking it as Excused.
 
 ## Disclaimer:
 I developed this with many frail assumptions about the data format in mind. The Aeries API is limited to IT department
