@@ -110,7 +110,8 @@ def test_log_discrepancies():
             mock_echo.assert_has_calls([
                 call('***Discrepancies between Google Classroom and Aeries overall grades:***'),
                 call('Period 1:'),
-                call('\tStudent: Alice, Google Classroom Grade: 90, Aeries Grade: 90.15'),
-                call('\tStudent: Bob, Google Classroom Grade: 70, Aeries Grade: 100'),
-                call('\tStudent: Charlie, Google Classroom Grade: 60, Aeries Grade: 69.9')
+                call('\tStudent                           Google Classroom    Aeries'),
+                call('\tAlice                                        90.00     90.15'),
+                call('\tBob                                          70.00       100'),
+                call('\tCharlie                                      60.00      69.9')
             ])

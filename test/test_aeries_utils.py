@@ -955,3 +955,40 @@ def test_send_patch_request_missing_grade():
             headers=headers,
             json=data
         )
+
+
+def test_extract_overall_grades_from_html():
+    mock_response = Mock()
+    mock_response.text = 'my html'
+    mock_beautiful_soup = Mock()
+    mock_beautiful_soup.find.return_value = NavigableString(value='100%')
+    mock_beautiful_soup_2 = Mock()
+    mock_beautiful_soup_2.find.return_value = NavigableString(value='96.65%')
+
+    expected_headers = {
+        'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+        'Cookie': 's=aeries-cookie'
+    }
+
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/S', 2: '234/S'}
+    aeries_data.periods_to_student_ids_to_student_nums = {
+        1: {1: 99, 2: 88}
+    }
+
+    with (patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get):
+        with patch('aeries_utils.BeautifulSoup',
+                   side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
+            assert aeries_data.extract_overall_grades_from_html(period=1) == {
+                1: 100,
+                2: 96.65
+            }
+
+            mock_requests_get.assert_has_calls([
+                call('https://aeries.musd.org/gradebook/123/S/ScoresByStudent/99/341', headers=expected_headers),
+                call('https://aeries.musd.org/gradebook/123/S/ScoresByStudent/88/341', headers=expected_headers)
+            ])
+            mock_beautiful_soup_create.assert_has_calls([
+                call('my html', 'html.parser'),
+                call('my html', 'html.parser')
+            ])

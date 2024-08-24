@@ -61,8 +61,8 @@ def test_get_submissions():
                     }
 
                     mock_get_periods_to_course_ids.assert_called_once_with()
-                    mock_get_user_ids_to_student_ids.assert_has_calls([call(course_id=10, period=1),
-                                                                       call(course_id=20, period=2)])
+                    mock_get_user_ids_to_student_ids.assert_has_calls([call(course_id=10),
+                                                                       call(course_id=20)])
                     mock_get_all_published_coursework.assert_has_calls([call(course_id=10),
                                                                         call(course_id=20)])
                     mock_get_grades_for_coursework.assert_has_calls([call(course_id=10,
