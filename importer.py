@@ -6,6 +6,7 @@ import click
 
 from aeries_utils import AeriesData, AssignmentPatchData, AeriesAssignmentData
 from google_classroom_utils import GoogleClassroomData, GoogleClassroomAssignment
+from validator import Validator
 
 GRADEBOOK_NUMBER_PATTERN = re.compile(r'^([0-9]+)/([F|S])$')
 
@@ -37,6 +38,17 @@ def run_import(classroom_service,
     )
 
     aeries_data.update_grades_in_aeries(assignment_patch_data=assignment_patch_data)
+
+    click.echo('Grades have been successfully imported to Aeries.')
+    click.echo('Checking grades for any discrepancies...')
+    validator = Validator(
+        periods=periods,
+        google_classroom_data=google_classroom_data,
+        aeries_data=aeries_data
+    )
+    validator.generate_discrepancy_report()
+    validator.log_discrepancies()
+    click.echo('Grades have been successfully validated.')
 
 
 def _join_google_classroom_and_aeries_data(
@@ -142,7 +154,7 @@ def _generate_patch_data_for_assignment(
 
     for student_id, grade in google_classroom_submissions.items():
         if student_id not in student_ids_to_student_nums:
-            student_name = google_classroom_data.get_student_name(student_id=student_id)
+            student_name = google_classroom_data.user_ids_to_names[student_id]
             raise ValueError(f'Student {student_name} found in Google Classroom who is not enrolled in the Aeries '
                              'roster. Please check Aeries if they need to added to the class, or if they should be '
                              'dropped from the Google Classroom roster.')

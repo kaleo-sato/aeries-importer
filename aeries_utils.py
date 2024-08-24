@@ -24,6 +24,7 @@ SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME = 'students'
 STUDENT_ID_TAG_NAME = 'data-stuid'
 STUDENT_NUMBER_TAG_NAME = 'data-sn'
 SCORE_TAG_NAME = 'data-original-value'
+CURRENT_PERCENTAGE_TAG_NAME = 'CurrentPercentage'
 ASSIGNMENT_DESC_CLASS_NAME = 'description row cursor-hand'
 ASSIGNMENT_CATEGORY_SEARCH_STRING = 'Category:'
 ASSIGNMENT_DESC_TAG_NAME = 'data-assignment-desc'
@@ -489,3 +490,26 @@ class AeriesData:
                       params={'fieldName': 'Mark'},
                       headers=headers,
                       json=data)
+
+    def extract_overall_grades_from_html(self, period: int) -> dict[int, float]:
+        """
+        Extract the overall grades from the Aeries HTML for the given period.
+        :return: Mapping of student id to overall grade.
+        """
+        overall_grades = {}
+        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+                   'Cookie': f's={self.s_cookie}'}
+
+        gradebook_id = self.periods_to_gradebook_ids[period]
+        response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
+        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+
+        for tag in (beautiful_soup
+                    .find('table', class_=SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME)
+                    .find_all('tr', class_='row')):
+            student_id = int(tag.get(STUDENT_ID_TAG_NAME))
+
+            overall_grade = float(tag.find('td', attrs={'data-column-name': CURRENT_PERCENTAGE_TAG_NAME}).string)
+            overall_grades[student_id] = overall_grade
+
+        return overall_grades

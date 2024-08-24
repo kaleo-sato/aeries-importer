@@ -778,17 +778,16 @@ def test_generate_patch_data_for_assignment_exception():
     aeries_data.periods_to_student_ids_to_student_nums = {1: student_ids_to_student_nums}
     aeries_data.periods_to_assignment_submissions = {1: {80: aeries_submissions}}
 
-    with patch('importer.GoogleClassroomData') as mock_google_classroom_data:
-        mock_google_classroom_data.get_student_name.return_value = 'John Doe'
+    google_classroom_data = GoogleClassroomData(periods=[1], classroom_service=Mock())
+    google_classroom_data.user_ids_to_names = {1000: 'John Doe'}
 
-        with raises(ValueError, match='Student John Doe found in Google Classroom who is not enrolled in the Aeries '
-                                      'roster. Please check Aeries if they need to added to the class, or if they '
-                                      'should be dropped from the Google Classroom roster.'):
-            _generate_patch_data_for_assignment(
-                google_classroom_data=mock_google_classroom_data,
-                google_classroom_submissions=google_classroom_submissions,
-                aeries_data=aeries_data,
-                aeries_assignment_id=80,
-                period=1
-            )
-        mock_google_classroom_data.get_student_name.assert_called_once_with(student_id=1000)
+    with raises(ValueError, match='Student John Doe found in Google Classroom who is not enrolled in the Aeries '
+                                  'roster. Please check Aeries if they need to added to the class, or if they '
+                                  'should be dropped from the Google Classroom roster.'):
+        _generate_patch_data_for_assignment(
+            google_classroom_data=google_classroom_data,
+            google_classroom_submissions=google_classroom_submissions,
+            aeries_data=aeries_data,
+            aeries_assignment_id=80,
+            period=1
+        )

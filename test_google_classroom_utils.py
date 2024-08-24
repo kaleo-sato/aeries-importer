@@ -61,8 +61,8 @@ def test_get_submissions():
                     }
 
                     mock_get_periods_to_course_ids.assert_called_once_with()
-                    mock_get_user_ids_to_student_ids.assert_has_calls([call(course_id=10),
-                                                                       call(course_id=20)])
+                    mock_get_user_ids_to_student_ids.assert_has_calls([call(course_id=10, period=1),
+                                                                       call(course_id=20, period=2)])
                     mock_get_all_published_coursework.assert_has_calls([call(course_id=10),
                                                                         call(course_id=20)])
                     mock_get_grades_for_coursework.assert_has_calls([call(course_id=10,
@@ -132,12 +132,15 @@ def test_get_user_ids_to_student_ids():
     mock_classroom_service = Mock()
     mock_classroom_service.courses.return_value.students.return_value.list.return_value.execute.side_effect = [
         {
-            'students': [{'userId': 33, 'profile': {'emailAddress': 'ab12345@student.musd.org'}},
-                         {'userId': 51, 'profile': {'emailAddress': 'un902934@student.musd.org'}}],
+            'students': [{'userId': 33, 'profile': {'emailAddress': 'ab12345@student.musd.org',
+                                                    'name': {'fullName': 'Alice Bob'}}},
+                         {'userId': 51, 'profile': {'emailAddress': 'un902934@student.musd.org',
+                                                    'name': {'fullName': 'Fredward Jacobs'}}}],
             'nextPageToken': 'next_page_token'
         },
         {
-            'students': [{'userId': 99, 'profile': {'emailAddress': 'np783273@student.musd.org'}}]
+            'students': [{'userId': 99, 'profile': {'emailAddress': 'np783273@student.musd.org',
+                                                    'name': {'fullName': 'James Dude'}}}]
         },
     ]
 
@@ -147,12 +150,18 @@ def test_get_user_ids_to_student_ids():
         51: 902934,
         99: 783273
     }
+    assert google_classroom_data.user_ids_to_names == {
+        12345: 'Alice Bob',
+        902934: 'Fredward Jacobs',
+        783273: 'James Dude'
+    }
 
 
 def test_get_user_ids_to_student_ids_invalid_email():
     mock_classroom_service = Mock()
     mock_classroom_service.courses.return_value.students.return_value.list.return_value.execute.return_value = {
-        'students': [{'userId': 33, 'profile': {'emailAddress': 'asdf5@gmail.com'}}]
+        'students': [{'userId': 33, 'profile': {'emailAddress': 'asdf5@gmail.com',
+                                                'name': {'fullName': 'James Dude'}}}]
     }
 
     google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
@@ -208,16 +217,97 @@ def test_get_grades_for_coursework():
                                                             coursework_id=33) == {10: 20.3, 20: None}
 
 
-def test_get_student_name():
+def test_get_student_ids_to_names():
     mock_classroom_service = Mock()
-    (mock_classroom_service
-     .userProfiles.return_value
-     .get.return_value
-     .execute.return_value) = {
-        'name': {
-            'fullName': 'John Doe'
+    mock_classroom_service.courses.return_value.students.return_value.list.return_value.execute.side_effect = [
+        {
+            'students': [{'userId': 33, 'profile': {'emailAddress': 'ab12345@student.musd.org',
+                                                    'name': {'fullName': 'Alice Bob'}}},
+                         {'userId': 51, 'profile': {'emailAddress': 'un902934@student.musd.org',
+                                                    'name': {'fullName': 'Fredward Jacobs'}}}],
+            'nextPageToken': 'next_page_token'
+        },
+        {
+            'students': [{'userId': 99, 'profile': {'emailAddress': 'np783273@student.musd.org',
+                                                    'name': {'fullName': 'James Dude'}}}]
+        },
+        {
+            'students': [{'userId': 33, 'profile': {'emailAddress': 'ab12345@student.musd.org',
+                                                    'name': {'fullName': 'Alice Bob'}}},
+                         {'userId': 51, 'profile': {'emailAddress': 'un902934@student.musd.org',
+                                                    'name': {'fullName': 'Fredward Jacobs'}}}],
+            'nextPageToken': 'next_page_token'
+        },
+        {
+            'students': [{'userId': 99, 'profile': {'emailAddress': 'np783273@student.musd.org',
+                                                    'name': {'fullName': 'James Dude'}}}]
         }
+    ]
+
+    google_classroom_data = GoogleClassroomData(periods=[1, 2], classroom_service=mock_classroom_service)
+
+    with patch.object(google_classroom_data, '_get_periods_to_course_ids',
+                      return_value={1: 10, 2: 20}) as mock_get_periods_to_course_ids:
+        assert google_classroom_data.get_student_ids_to_names() == {
+            1: {
+                12345: 'Alice Bob',
+                902934: 'Fredward Jacobs',
+                783273: 'James Dude'
+            },
+            2: {
+                12345: 'Alice Bob',
+                902934: 'Fredward Jacobs',
+                783273: 'James Dude'
+            }
+        }
+        mock_get_periods_to_course_ids.assert_called_once_with()
+
+
+def test_get_overall_grades_not_populated():
+    mock_classroom_service = Mock()
+    google_classroom_data = GoogleClassroomData(periods=[1, 2], classroom_service=mock_classroom_service)
+    with raises(ValueError, match=r'Google Classroom data has not been populated yet.'):
+        google_classroom_data.get_overall_grades(period=1, categories_to_weights={'foo': 0.5})
+
+
+def test_get_overall_grades():
+    periods_to_assignments = {
+
+        1: [GoogleClassroomAssignment(submissions={11: 10, 22: 10},
+                                      assignment_name='hw1',
+                                      point_total=10,
+                                      category='Performance'),
+            GoogleClassroomAssignment(submissions={11: None, 22: 5},
+                                      assignment_name='hw2',
+                                      point_total=5,
+                                      category='Practice'),
+            GoogleClassroomAssignment(submissions={11: 2, 22: None},
+                                      assignment_name='hw3',
+                                      point_total=5,
+                                      category='Participation')],
+        2: [GoogleClassroomAssignment(submissions={33: 9, 44: 9},
+                                      assignment_name='hw10',
+                                      point_total=10,
+                                      category='Performance'),
+            GoogleClassroomAssignment(submissions={33: None, 44: 9},
+                                      assignment_name='hw20',
+                                      point_total=5,
+                                      category='Practice')]
     }
 
-    google_classroom_data = GoogleClassroomData(periods=[1, 2, 3], classroom_service=mock_classroom_service)
-    assert google_classroom_data.get_student_name(student_id=100) == 'John Doe'
+    google_classroom_data = GoogleClassroomData(periods=[1, 2], classroom_service=Mock())
+    google_classroom_data.periods_to_assignments = periods_to_assignments
+
+    assert google_classroom_data.get_overall_grades(period=1, categories_to_weights={
+        'Performance': 0.5, 'Practice': 0.4, 'Participation': 0.1
+    }) == {
+        11: 90,  # ((10/10 * 0.5) + (2/5 * 0.1)) / 0.6 * 100  Ignore Practice 40% due to lack of grade in the category
+        22: 100
+    }
+
+    assert google_classroom_data.get_overall_grades(period=2, categories_to_weights={
+        'Performance': 0.5, 'Practice': 0.4, 'Participation': 0.1
+    }) == {
+        33: 90,  # ((9/10 * 0.5) / 0.5) * 100  Ignore Practice and Participation % due to lack of grades
+        44: 130  # (((9/5 * 0.4) + (9/10 * 0.5)) / 0.9) * 100
+    }

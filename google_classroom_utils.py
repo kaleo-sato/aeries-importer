@@ -28,6 +28,7 @@ class GoogleClassroomData:
         self.classroom_service = classroom_service
         self.periods = periods
         self.periods_to_assignments: dict[int, list[GoogleClassroomAssignment]] = defaultdict(list)
+        self.user_ids_to_names: dict[int, str] = {}
 
     def get_submissions(self) -> None:
         """
@@ -41,7 +42,7 @@ class GoogleClassroomData:
 
         for period, course_id in periods_to_course_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            user_ids_to_student_ids = self._get_user_ids_to_student_ids(course_id=course_id)
+            user_ids_to_student_ids = self._get_user_ids_to_student_ids(course_id=course_id, period=period)
 
             coursework_ids_to_assignment_data = self._get_all_published_coursework(course_id=course_id)
 
@@ -77,6 +78,7 @@ class GoogleClassroomData:
     def _get_user_ids_to_student_ids(self, course_id: int) -> dict[int, int]:
         """
         Returns Google service user id mapped to the student id.
+        Also populates the user_ids_to_names attribute.
 
         :param course_id: The Course Id to fetch student emails from.
         :return: The student user id mapped to their student id.
@@ -95,6 +97,9 @@ class GoogleClassroomData:
                 if not match:
                     raise ValueError(f'Student email address is in an unexpected format: {email}')
                 user_ids_to_student_ids[google_id] = int(match.group(1))
+
+                # Maintain a backwards mapping to names
+                self.user_ids_to_names[int(match.group(1))] = student['profile']['name']['fullName']
 
             next_page_token = query.get('nextPageToken')
             if next_page_token:
@@ -178,16 +183,84 @@ class GoogleClassroomData:
                                .get('studentSubmissions', []))
         return {submission['userId']: submission.get('assignedGrade') for submission in student_submissions}
 
-    def get_student_name(self, student_id: int) -> str:
+    def get_student_ids_to_names(self) -> dict[int, dict[int, str]]:
         """
-        Returns the name of the student with the given student id.
+        Returns the periods mapped to student ids mapped to the names of the students.
 
-        :param student_id: The student id to get the name for.
-        :return: The student name.
+        :return: The periods student ids mapped to the student names.
         """
-        user_profile = (self.classroom_service
-                        .userProfiles()
-                        .get(userId=student_id)
-                        .execute())
-        return user_profile['name']['fullName']
+        periods_to_student_ids_to_names = {}
+        periods_to_course_ids = self._get_periods_to_course_ids()
 
+        for period, course_id in periods_to_course_ids.items():
+            student_ids_to_names = {}
+            query = self.classroom_service.courses().students().list(courseId=course_id).execute()
+            students = query.get('students', [])
+
+            while True:
+                for student in students:
+                    email = student['profile']['emailAddress']
+                    name = student['profile']['name']['fullName']
+
+                    match = EMAIL_ADDRESS_PATTERN_COMPILE.match(email)
+
+                    if not match:
+                        raise ValueError(f'Student email address is in an unexpected format: {email}')
+                    student_ids_to_names[int(match.group(1))] = name
+
+                next_page_token = query.get('nextPageToken')
+                if next_page_token:
+                    query = (self.classroom_service
+                             .courses()
+                             .students()
+                             .list(courseId=course_id, pageToken=next_page_token)
+                             .execute())
+                    students = query.get('students', [])
+                else:
+                    break
+
+            periods_to_student_ids_to_names[period] = student_ids_to_names
+
+        return periods_to_student_ids_to_names
+
+    def get_overall_grades(self, period: int, categories_to_weights: dict[str, float]) -> dict[int, float]:
+        """
+        Returns the overall grades for the students in the given period. This assumes that get_submissions has already
+        populated the Google Classroom data.
+
+        :param period: The period to get overall_grades for.
+        :param categories_to_weights: The categories mapped to their respective weights (from Aeries).
+        :return: The student id mapped to overall grade.
+        """
+        if not self.periods_to_assignments:
+            raise ValueError('Google Classroom data has not been populated yet.')
+
+        assignments = self.periods_to_assignments[period]
+        student_ids_to_points_received_by_category = defaultdict(lambda: defaultdict(float))
+        student_ids_to_total_points_by_category = defaultdict(lambda: defaultdict(float))
+
+        for assignment in assignments:
+            for student_id, grade in assignment.submissions.items():
+                if grade is None:
+                    continue
+
+                student_ids_to_points_received_by_category[student_id][assignment.category] += grade
+                student_ids_to_total_points_by_category[student_id][assignment.category] += assignment.point_total
+
+        student_ids_to_overall_grades = defaultdict(float)
+
+        for student_id, category_to_points_received in student_ids_to_points_received_by_category.items():
+            for category, points_received in category_to_points_received.items():
+                total_points_for_category = student_ids_to_total_points_by_category[student_id][category]
+                if total_points_for_category == 0:
+                    continue
+                student_ids_to_overall_grades[student_id] += (points_received / total_points_for_category) * (categories_to_weights[category] * 100)
+
+            # Make the overall grade out of the sum of weights for only categories in which the student has grades for
+            total_weight = sum((weight * 100)
+                               for category, weight in categories_to_weights.items()
+                               if category in category_to_points_received)
+            if total_weight != 100:
+                student_ids_to_overall_grades[student_id] = (student_ids_to_overall_grades[student_id] / total_weight) * 100
+
+        return student_ids_to_overall_grades
