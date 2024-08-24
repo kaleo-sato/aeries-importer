@@ -4,16 +4,9 @@ from arrow import Arrow
 from bs4 import Tag, NavigableString
 from pytest import raises
 
-from aeries_utils import (extract_gradebook_ids_from_html, GRADEBOOK_AND_TERM_TAG_NAME, GRADEBOOK_URL,
-                          _get_periods_to_gradebook_and_term, extract_student_ids_to_student_nums_from_html,
-                          STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME, _get_student_ids_to_student_nums,
-                          extract_assignment_information_from_html, AeriesAssignmentData,
-                          _get_assignment_information, create_aeries_assignment, CREATE_ASSIGNMENT_URL,
-                          _get_form_request_verification_token, update_grades_in_aeries, AssignmentPatchData,
-                          _send_patch_request, AeriesCategory, extract_gradebook_information_from_html,
-                          _get_aeries_category_information, patch_aeries_assignment,
-                          extract_assignment_submissions_from_html, _get_assignment_submissions_information,
-                          AeriesClassroomData, _get_aeries_end_term_information)
+from aeries_utils import (GRADEBOOK_AND_TERM_TAG_NAME, GRADEBOOK_URL, STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME,
+                          AeriesAssignmentData, CREATE_ASSIGNMENT_URL, AssignmentPatchData, AeriesCategory,
+                          AeriesClassroomData, AeriesData)
 from constants import MILPITAS_SCHOOL_CODE
 
 
@@ -23,19 +16,20 @@ def test_extract_gradebook_ids_from_html():
     mock_beautiful_soup = Mock()
     periods = [1, 2]
 
+    aeries_data = AeriesData(periods=periods, s_cookie='aeries-cookie')
+
     with patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get:
         with patch('aeries_utils.BeautifulSoup', return_value=mock_beautiful_soup) as mock_beautiful_soup_create:
-            with patch('aeries_utils._get_periods_to_gradebook_and_term',
+            with patch('aeries_utils.AeriesData._get_periods_to_gradebook_and_term',
                        return_value={1: 'foo', 2: 'bar'}) as mock_get_periods_to_gradebook_and_term:
-                assert extract_gradebook_ids_from_html(periods=periods,
-                                                       s_cookie='aeries-cookie') == {1: 'foo', 2: 'bar'}
+                aeries_data.extract_gradebook_ids_from_html()
+                assert aeries_data.periods_to_gradebook_ids == {1: 'foo', 2: 'bar'}
                 mock_requests_get.assert_called_once_with(GRADEBOOK_URL, headers={
                     'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                     'Cookie': 's=aeries-cookie'
                 })
                 mock_beautiful_soup_create.assert_called_once_with('my html', 'html.parser')
-                mock_get_periods_to_gradebook_and_term.assert_called_once_with(periods=periods,
-                                                                               beautiful_soup=mock_beautiful_soup)
+                mock_get_periods_to_gradebook_and_term.assert_called_once_with(beautiful_soup=mock_beautiful_soup)
 
 
 def test_get_periods_to_gradebook_and_term():
@@ -51,8 +45,9 @@ def test_get_periods_to_gradebook_and_term():
         NavigableString(value='4 - The ignored class')
     ]
 
-    assert _get_periods_to_gradebook_and_term(periods=[1, 2],
-                                              beautiful_soup=mock_beautiful_soup) == {
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
+    assert aeries_data._get_periods_to_gradebook_and_term(beautiful_soup=mock_beautiful_soup) == {
         1: 'period 1 gradebook and term',
         2: 'period 2 gradebook and term'
     }
@@ -71,10 +66,11 @@ def test_get_periods_to_gradebook_and_term_invalid_class_name():
         NavigableString(value='4 - The ignored class')
     ]
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
     with raises(ValueError, match=r'Unexpected naming convention for Aeries class: Bad name - The other class\. '
                                   r'Expected it to start with "\[1-6\] - "'):
-        _get_periods_to_gradebook_and_term(periods=[1, 2],
-                                           beautiful_soup=mock_beautiful_soup)
+        aeries_data._get_periods_to_gradebook_and_term(beautiful_soup=mock_beautiful_soup)
 
 
 def test_get_periods_to_gradebook_and_term_invalid_period_num():
@@ -89,11 +85,12 @@ def test_get_periods_to_gradebook_and_term_invalid_period_num():
         NavigableString(value='4 - The ignored class')
     ]
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
     with raises(ValueError, match='Periods specified were not matched to the Aeries class gradebook.\n'
                                   'Periods wanted: 1, 2\n'
                                   r'Periods found in Aeries: 1'):
-        _get_periods_to_gradebook_and_term(periods=[1, 2],
-                                           beautiful_soup=mock_beautiful_soup)
+        aeries_data._get_periods_to_gradebook_and_term(beautiful_soup=mock_beautiful_soup)
 
 
 def test_extract_student_ids_to_student_nums_from_html():
@@ -107,14 +104,17 @@ def test_extract_student_ids_to_student_nums_from_html():
         'Cookie': 's=aeries-cookie'
     }
 
-    with patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/S', 2: '234/S'}
+
+    with (patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get):
         with patch('aeries_utils.BeautifulSoup',
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
-            with patch('aeries_utils._get_student_ids_to_student_nums',
+            with patch('aeries_utils.AeriesData._get_student_ids_to_student_nums',
                        side_effect=[{1: 10, 2: 20},
                                     {3: 30, 4: 40}]) as mock_get_student_ids_to_student_nums:
-                assert extract_student_ids_to_student_nums_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
-                                                                     s_cookie='aeries-cookie') == {
+                aeries_data.extract_student_ids_to_student_nums_from_html()
+                assert aeries_data.periods_to_student_ids_to_student_nums == {
                     1: {1: 10, 2: 20},
                     2: {3: 30, 4: 40}
                 }
@@ -139,7 +139,9 @@ def test_get_student_ids_to_student_nums():
         Tag(attrs={STUDENT_NUMBER_TAG_NAME: '2', STUDENT_ID_TAG_NAME: '20'}, name='second')
     ]
 
-    assert _get_student_ids_to_student_nums(beautiful_soup=mock_beautiful_soup) == {10: 1, 20: 2}
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
+    assert aeries_data._get_student_ids_to_student_nums(beautiful_soup=mock_beautiful_soup) == {10: 1, 20: 2}
 
 
 def test_extract_assignment_information_from_html():
@@ -153,23 +155,26 @@ def test_extract_assignment_information_from_html():
         'Cookie': 's=aeries-cookie'
     }
 
-    with patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/S', 2: '234/S'}
+
+    with (patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get):
         with patch('aeries_utils.BeautifulSoup',
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
-            with patch('aeries_utils._get_assignment_information',
+            with patch('aeries_utils.AeriesData._get_assignment_information',
                        side_effect=[
                            {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
                             'b': AeriesAssignmentData(id=2, point_total=20, category='B')},
                            {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
                             'c': AeriesAssignmentData(id=3, point_total=30, category='C')}
                        ]) as mock_get_assignment_information:
-                assert extract_assignment_information_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
-                                                                s_cookie='aeries-cookie') == {
-                           1: {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
-                               'b': AeriesAssignmentData(id=2, point_total=20, category='B')},
-                           2: {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
-                               'c': AeriesAssignmentData(id=3, point_total=30, category='C')}
-                       }
+                aeries_data.extract_assignment_information_from_html()
+                assert aeries_data.periods_to_assignment_information == {
+                   1: {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
+                       'b': AeriesAssignmentData(id=2, point_total=20, category='B')},
+                   2: {'a': AeriesAssignmentData(id=1, point_total=10, category='A'),
+                       'c': AeriesAssignmentData(id=3, point_total=30, category='C')}
+               }
                 mock_requests_get.assert_has_calls([
                     call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
                     call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
@@ -212,7 +217,9 @@ def test_get_assignment_information():
         mock_assignment_tag_2
     ]
 
-    assert _get_assignment_information(beautiful_soup=mock_beautiful_soup) == {
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
+    assert aeries_data._get_assignment_information(beautiful_soup=mock_beautiful_soup) == {
         'Introductory Assignment': AeriesAssignmentData(id=1, point_total=10, category='Performance'),
         'The Next Assignment': AeriesAssignmentData(id=2, point_total=20, category='Practice')
     }
@@ -244,9 +251,11 @@ def test_get_assignment_information_invalid_assignment_description():
         mock_assignment_tag_2
     ]
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
     with raises(ValueError, match=r'Unexpected format for Aeries assignment description: The Next Assignment. '
                                   'Expected it to start with "<Assignment number> - "'):
-        assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
+        assert aeries_data._get_assignment_information(beautiful_soup=mock_beautiful_soup)
 
 
 def test_get_assignment_information_invalid_assignment_point_total():
@@ -275,9 +284,11 @@ def test_get_assignment_information_invalid_assignment_point_total():
         mock_assignment_tag_2
     ]
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
     with raises(ValueError, match=r'Unexpected format for Aeries assignment point total: 20. '
                                   'Expected it to look like " : <Point total>"'):
-        assert _get_assignment_information(beautiful_soup=mock_beautiful_soup)
+        assert aeries_data._get_assignment_information(beautiful_soup=mock_beautiful_soup)
 
 
 def test_extract_assignment_submissions_from_html():
@@ -291,23 +302,26 @@ def test_extract_assignment_submissions_from_html():
         'Cookie': 's=aeries-cookie'
     }
 
-    with patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/S', 2: '234/S'}
+
+    with (patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get):
         with patch('aeries_utils.BeautifulSoup',
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
-            with patch('aeries_utils._get_assignment_submissions_information',
+            with patch('aeries_utils.AeriesData._get_assignment_submissions_information',
                        side_effect=[
                            {90: {200: '', 201: 'N/A', 202: '30.5', 203: 'MI'},
                             91: {200: '', 201: 'N/A', 202: '50.5', 203: 'MI'}},
                            {90: {300: '', 301: 'N/A', 302: '30.5', 303: 'MI'},
                             92: {300: '', 301: '', 302: '50.5', 303: '100'}}
                        ]) as mock_get_assignment_submissions_information:
-                assert extract_assignment_submissions_from_html(periods_to_gradebook_ids={1: '123/S', 2: '234/S'},
-                                                                s_cookie='aeries-cookie') == {
-                           1: {90: {200: '', 201: 'N/A', 202: '30.5', 203: 'MI'},
-                               91: {200: '', 201: 'N/A', 202: '50.5', 203: 'MI'}},
-                           2: {90: {300: '', 301: 'N/A', 302: '30.5', 303: 'MI'},
-                               92: {300: '', 301: '', 302: '50.5', 303: '100'}}
-                       }
+                aeries_data.extract_assignment_submissions_from_html()
+                assert aeries_data.periods_to_assignment_submissions == {
+                    1: {90: {200: '', 201: 'N/A', 202: '30.5', 203: 'MI'},
+                        91: {200: '', 201: 'N/A', 202: '50.5', 203: 'MI'}},
+                    2: {90: {300: '', 301: 'N/A', 302: '30.5', 303: 'MI'},
+                        92: {300: '', 301: '', 302: '50.5', 303: '100'}}
+                }
                 mock_requests_get.assert_has_calls([
                     call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
                     call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
@@ -344,7 +358,8 @@ def test_get_assignment_submissions_information():
         mock_submission_tag_4
     ]
 
-    assert _get_assignment_submissions_information(beautiful_soup=mock_beautiful_soup) == {
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+    assert aeries_data._get_assignment_submissions_information(beautiful_soup=mock_beautiful_soup) == {
         78: {200: 'MI', 201: '20.4'},
         79: {202: '100', 203: ''}
     }
@@ -362,10 +377,13 @@ def test_extract_gradebook_information_from_html():
         'Cookie': 's=aeries-cookie'
     }
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+
     with (patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get):
         with patch('aeries_utils.BeautifulSoup',
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
-            with patch('aeries_utils._get_aeries_category_information',
+            with patch('aeries_utils.AeriesData._get_aeries_category_information',
                        side_effect=[
                            {'Practice': AeriesCategory(id=1,
                                                        name='Practice',
@@ -377,29 +395,31 @@ def test_extract_gradebook_information_from_html():
                                                           name='Performance',
                                                           weight=0.7)}
                        ]) as mock_get_category_information:
-                with patch('aeries_utils._get_aeries_end_term_information',
+                with patch('aeries_utils.AeriesData._get_aeries_end_term_information',
                            side_effect=[
                                {'F': Arrow(year=2025, month=12, day=25)},
                                {'F': Arrow(year=2026, month=12, day=23), 'S': Arrow(year=2026, month=6, day=15)}
                           ]) as mock_get_end_term_information:
-                    assert extract_gradebook_information_from_html(periods_to_gradebook_ids={1: '123/F', 2: '234/S'},
-                                                         s_cookie='aeries-cookie') == ({
-                               1: AeriesClassroomData(
-                                   categories={'Practice': AeriesCategory(id=1,
-                                                                          name='Practice',
-                                                                          weight=1.0)},
-                                   end_term_dates={'F': Arrow(year=2025, month=12, day=25)}),
-                               2: AeriesClassroomData(
-                                   categories={'Practice': AeriesCategory(id=1,
-                                                                          name='Practice',
-                                                                          weight=0.3),
-                                               'Performance': AeriesCategory(id=2,
-                                                                             name='Performance',
-                                                                             weight=0.7)},
-                                   end_term_dates={'F': Arrow(year=2026, month=12, day=23),
-                                                   'S': Arrow(year=2026, month=6, day=15)},
-                               )
-                           }, 'request')
+                    aeries_data.extract_gradebook_information_from_html()
+                    assert aeries_data.periods_to_gradebook_information == {
+                       1: AeriesClassroomData(
+                           categories={'Practice': AeriesCategory(id=1,
+                                                                  name='Practice',
+                                                                  weight=1.0)},
+                           end_term_dates={'F': Arrow(year=2025, month=12, day=25)}),
+                       2: AeriesClassroomData(
+                           categories={'Practice': AeriesCategory(id=1,
+                                                                  name='Practice',
+                                                                  weight=0.3),
+                                       'Performance': AeriesCategory(id=2,
+                                                                     name='Performance',
+                                                                     weight=0.7)},
+                           end_term_dates={'F': Arrow(year=2026, month=12, day=23),
+                                           'S': Arrow(year=2026, month=6, day=15)},
+                       )
+                    }
+                    assert aeries_data.request_verification_token == 'request'
+
                     mock_requests_get.assert_has_calls([
                         call('https://aeries.musd.org/gradebook/123/F/manage', headers=expected_headers),
                         call('https://aeries.musd.org/gradebook/234/S/manage', headers=expected_headers)
@@ -427,7 +447,9 @@ def test_get_aeries_category_information():
         Tag(attrs={'value': '30'}, name='second_weight')
     ]
 
-    assert _get_aeries_category_information(beautiful_soup=mock_beautiful_soup) == {
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
+    assert aeries_data._get_aeries_category_information(beautiful_soup=mock_beautiful_soup) == {
         'Practice': AeriesCategory(id=1,
                                    name='Practice',
                                    weight=0.7),
@@ -446,7 +468,9 @@ def test_get_aeries_end_term_information():
         [mock_beautiful_soup_term_end_date, mock_beautiful_soup_term_end_date]
     ]
 
-    assert _get_aeries_end_term_information(beautiful_soup=mock_beautiful_soup) == {
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='aeries-cookie')
+
+    assert aeries_data._get_aeries_end_term_information(beautiful_soup=mock_beautiful_soup) == {
         'F': Arrow(year=2023, month=12, day=25, tzinfo='US/Pacific'),
         'S': Arrow(year=2023, month=12, day=25, tzinfo='US/Pacific')
     }
@@ -475,11 +499,16 @@ def test_create_aeries_assignment():
         'Assignment.ScoresVisibleToParents': True
     }
 
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with (patch.object(aeries_data, '_get_form_request_verification_token', return_value='mock_token')
+          as mock_token):
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.post') as mock_post_request:
                 mock_post_request.return_value.status_code = 200
-                assert create_aeries_assignment(
+                assert aeries_data.create_aeries_assignment(
                     gradebook_number='12345',
                     assignment_id=24,
                     assignment_name='nothing',
@@ -487,14 +516,10 @@ def test_create_aeries_assignment():
                     category=AeriesCategory(name='Practice',
                                             id=1,
                                             weight=0.5),
-                    end_term_date=Arrow(year=2023, month=2, day=24),
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token'
+                    end_term_date=Arrow(year=2023, month=2, day=24)
                 ) == AeriesAssignmentData(id=24, point_total=50, category='Practice')
 
-                mock_token.assert_called_once_with(gradebook_number='12345',
-                                                   s_cookie='s_cookie',
-                                                   request_verification_token='request_verification_token')
+                mock_token.assert_called_once_with(gradebook_number='12345')
                 mock_arrow_now.assert_called_once()
                 mock_post_request.assert_called_once_with(
                     CREATE_ASSIGNMENT_URL,
@@ -527,11 +552,15 @@ def test_create_aeries_assignment_with_due_date_past_term_end_date():
         'Assignment.ScoresVisibleToParents': True
     }
 
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, '_get_form_request_verification_token', return_value='mock_token') as mock_token:
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=29)) as mock_arrow_now:
             with patch('aeries_utils.requests.post') as mock_post_request:
                 mock_post_request.return_value.status_code = 200
-                assert create_aeries_assignment(
+                assert aeries_data.create_aeries_assignment(
                     gradebook_number='12345',
                     assignment_id=24,
                     assignment_name='nothing',
@@ -540,13 +569,9 @@ def test_create_aeries_assignment_with_due_date_past_term_end_date():
                                             id=1,
                                             weight=0.5),
                     end_term_date=Arrow(year=2023, month=1, day=25),
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token'
                 ) == AeriesAssignmentData(id=24, point_total=50, category='Practice')
 
-                mock_token.assert_called_once_with(gradebook_number='12345',
-                                                   s_cookie='s_cookie',
-                                                   request_verification_token='request_verification_token')
+                mock_token.assert_called_once_with(gradebook_number='12345')
                 mock_arrow_now.assert_called_once()
                 mock_post_request.assert_called_once_with(
                     CREATE_ASSIGNMENT_URL,
@@ -579,13 +604,17 @@ def test_create_aeries_assignment_invalid_status_code():
         'Assignment.ScoresVisibleToParents': True
     }
 
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, '_get_form_request_verification_token', return_value='mock_token') as mock_token:
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.post') as mock_post_request:
                 mock_post_request.return_value.status_code = 500
 
                 with raises(ValueError, match=r'Assignment creation has unexpected status code: 500'):
-                    assert create_aeries_assignment(
+                    assert aeries_data.create_aeries_assignment(
                         gradebook_number='12345',
                         assignment_id=24,
                         assignment_name='nothing',
@@ -593,14 +622,10 @@ def test_create_aeries_assignment_invalid_status_code():
                         category=AeriesCategory(name='Practice',
                                                 id=1,
                                                 weight=0.4),
-                        end_term_date=Arrow(year=2023, month=2, day=24),
-                        s_cookie='s_cookie',
-                        request_verification_token='request_verification_token'
+                        end_term_date=Arrow(year=2023, month=2, day=24)
                     )
 
-                mock_token.assert_called_once_with(gradebook_number='12345',
-                                                   s_cookie='s_cookie',
-                                                   request_verification_token='request_verification_token')
+                mock_token.assert_called_once_with(gradebook_number='12345')
                 mock_arrow_now.assert_called_once()
                 mock_post_request.assert_called_once_with(
                     CREATE_ASSIGNMENT_URL,
@@ -633,11 +658,15 @@ def test_patch_aeries_assignment():
         'Assignment.ScoresVisibleToParents': True
     }
 
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, '_get_form_request_verification_token', return_value='mock_token') as mock_token:
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.put') as mock_put_request:
                 mock_put_request.return_value.status_code = 200
-                assert patch_aeries_assignment(
+                assert aeries_data.patch_aeries_assignment(
                     gradebook_number='12345',
                     assignment_id=24,
                     assignment_name='nothing',
@@ -645,14 +674,10 @@ def test_patch_aeries_assignment():
                     category=AeriesCategory(name='Practice',
                                             id=1,
                                             weight=0.5),
-                    end_term_date=Arrow(year=2023, month=2, day=24),
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token'
+                    end_term_date=Arrow(year=2023, month=2, day=24)
                 ) == AeriesAssignmentData(id=24, point_total=50, category='Practice')
 
-                mock_token.assert_called_once_with(gradebook_number='12345',
-                                                   s_cookie='s_cookie',
-                                                   request_verification_token='request_verification_token')
+                mock_token.assert_called_once_with(gradebook_number='12345')
                 mock_arrow_now.assert_called_once()
                 mock_put_request.assert_called_once_with(
                     CREATE_ASSIGNMENT_URL,
@@ -685,13 +710,17 @@ def test_patch_aeries_assignment_invalid_status_code():
         'Assignment.ScoresVisibleToParents': True
     }
 
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, '_get_form_request_verification_token', return_value='mock_token') as mock_token:
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=1, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.put') as mock_put_request:
                 mock_put_request.return_value.status_code = 500
 
                 with raises(ValueError, match=r'Assignment update has unexpected status code: 500'):
-                    assert patch_aeries_assignment(
+                    assert aeries_data.patch_aeries_assignment(
                         gradebook_number='12345',
                         assignment_id=24,
                         assignment_name='nothing',
@@ -699,14 +728,10 @@ def test_patch_aeries_assignment_invalid_status_code():
                         category=AeriesCategory(name='Practice',
                                                 id=1,
                                                 weight=0.4),
-                        end_term_date=Arrow(year=2023, month=1, day=25),
-                        s_cookie='s_cookie',
-                        request_verification_token='request_verification_token'
+                        end_term_date=Arrow(year=2023, month=1, day=25)
                     )
 
-                mock_token.assert_called_once_with(gradebook_number='12345',
-                                                   s_cookie='s_cookie',
-                                                   request_verification_token='request_verification_token')
+                mock_token.assert_called_once_with(gradebook_number='12345')
                 mock_arrow_now.assert_called_once()
                 mock_put_request.assert_called_once_with(
                     CREATE_ASSIGNMENT_URL,
@@ -739,11 +764,15 @@ def test_patch_aeries_assignment_with_due_date_past_term_end_date():
         'Assignment.ScoresVisibleToParents': True
     }
 
-    with patch('aeries_utils._get_form_request_verification_token', return_value='mock_token') as mock_token:
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = {1: '123/F', 2: '234/S'}
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, '_get_form_request_verification_token', return_value='mock_token') as mock_token:
         with patch('aeries_utils.Arrow.now', return_value=Arrow(year=2023, month=2, day=24)) as mock_arrow_now:
             with patch('aeries_utils.requests.put') as mock_put_request:
                 mock_put_request.return_value.status_code = 200
-                assert patch_aeries_assignment(
+                assert aeries_data.patch_aeries_assignment(
                     gradebook_number='12345',
                     assignment_id=24,
                     assignment_name='nothing',
@@ -751,14 +780,10 @@ def test_patch_aeries_assignment_with_due_date_past_term_end_date():
                     category=AeriesCategory(name='Practice',
                                             id=1,
                                             weight=0.5),
-                    end_term_date=Arrow(year=2023, month=1, day=25),
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token'
+                    end_term_date=Arrow(year=2023, month=1, day=25)
                 ) == AeriesAssignmentData(id=24, point_total=50, category='Practice')
 
-                mock_token.assert_called_once_with(gradebook_number='12345',
-                                                   s_cookie='s_cookie',
-                                                   request_verification_token='request_verification_token')
+                mock_token.assert_called_once_with(gradebook_number='12345')
                 mock_arrow_now.assert_called_once()
                 mock_put_request.assert_called_once_with(
                     CREATE_ASSIGNMENT_URL,
@@ -785,13 +810,13 @@ def test_get_form_request_verification_token():
         'an': 0
     }
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.request_verification_token = 'request_verification_token'
+
     with patch('aeries_utils.requests.get', return_value=mock_response) as mock_request:
         with patch('aeries_utils.BeautifulSoup', return_value=mock_beautiful_soup) as mock_beautiful_soup_create:
-            assert _get_form_request_verification_token(
-                gradebook_number='12345',
-                s_cookie='s_cookie',
-                request_verification_token='request_verification_token'
-            ) == 'form_request_verification_token'
+            assert aeries_data._get_form_request_verification_token(
+                gradebook_number='12345') == 'form_request_verification_token'
 
             mock_request.assert_called_once_with(CREATE_ASSIGNMENT_URL,
                                                  params=expected_params,
@@ -818,30 +843,28 @@ def test_update_grades_in_aeries():
                                               grade=None)]
     }
 
-    with patch('aeries_utils._send_patch_request') as mock_send_patch_request:
-        update_grades_in_aeries(assignment_patch_data=assignment_patch_data,
-                                s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, '_send_patch_request') as mock_send_patch_request:
+        aeries_data.update_grades_in_aeries(assignment_patch_data=assignment_patch_data)
 
         mock_send_patch_request.assert_has_calls([call(gradebook_id='gradebook_id1',
                                                        assignment_number=123,
                                                        student_number=99,
-                                                       grade=68,
-                                                       s_cookie='s_cookie'),
+                                                       grade=68),
                                                   call(gradebook_id='gradebook_id1',
                                                        assignment_number=124,
                                                        student_number=99,
-                                                       grade=None,
-                                                       s_cookie='s_cookie'),
+                                                       grade=None),
                                                   call(gradebook_id='gradebook_id2',
                                                        assignment_number=45,
                                                        student_number=88,
-                                                       grade=33,
-                                                       s_cookie='s_cookie'),
+                                                       grade=33),
                                                   call(gradebook_id='gradebook_id2',
                                                        assignment_number=124,
                                                        student_number=99,
-                                                       grade=None,
-                                                       s_cookie='s_cookie')])
+                                                       grade=None)])
 
 
 def test_send_patch_request():
@@ -858,12 +881,13 @@ def test_send_patch_request():
         "Mark": 60
     }
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+
     with patch('aeries_utils.requests.post') as mock_requests_post:
-        _send_patch_request(gradebook_id='12345/S',
-                            assignment_number=55,
-                            student_number=2212,
-                            grade=60,
-                            s_cookie='s_cookie')
+        aeries_data._send_patch_request(gradebook_id='12345/S',
+                                        assignment_number=55,
+                                        student_number=2212,
+                                        grade=60)
 
         mock_requests_post.assert_called_once_with(
             'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
@@ -887,12 +911,13 @@ def test_send_patch_request_empty_grade():
         "Mark": ''
     }
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+
     with patch('aeries_utils.requests.post') as mock_requests_post:
-        _send_patch_request(gradebook_id='12345/S',
-                            assignment_number=55,
-                            student_number=2212,
-                            grade=None,
-                            s_cookie='s_cookie')
+        aeries_data._send_patch_request(gradebook_id='12345/S',
+                                        assignment_number=55,
+                                        student_number=2212,
+                                        grade=None)
 
         mock_requests_post.assert_called_once_with(
             'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
@@ -916,12 +941,13 @@ def test_send_patch_request_missing_grade():
         "Mark": 'MI'
     }
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+
     with patch('aeries_utils.requests.post') as mock_requests_post:
-        _send_patch_request(gradebook_id='12345/S',
-                            assignment_number=55,
-                            student_number=2212,
-                            grade=0,
-                            s_cookie='s_cookie')
+        aeries_data._send_patch_request(gradebook_id='12345/S',
+                                        assignment_number=55,
+                                        student_number=2212,
+                                        grade=0)
 
         mock_requests_post.assert_called_once_with(
             'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',

@@ -3,10 +3,10 @@ from unittest.mock import Mock, patch, call
 from arrow import Arrow
 from pytest import mark, raises
 
-from aeries_utils import AeriesAssignmentData, AeriesCategory, AeriesClassroomData
-from google_classroom_utils import GoogleClassroomAssignment
+from aeries_utils import AeriesAssignmentData, AeriesCategory, AeriesClassroomData, AeriesData
+from google_classroom_utils import GoogleClassroomAssignment, GoogleClassroomData
 from importer import run_import, _join_google_classroom_and_aeries_data, AssignmentPatchData, \
-    _generate_patch_data_for_assignment
+    _generate_patch_data_for_assignment, _get_or_create_aeries_assignment
 
 
 def test_run_import():
@@ -139,59 +139,38 @@ def test_run_import():
         )
     }
 
-    with patch('importer.get_submissions', return_value=submissions) as mock_submissions:
-        with patch('importer.extract_gradebook_ids_from_html',
-                   return_value={1: '111/S', 2: '222/F'}) as mock_gradebook_ids:
-            with patch('importer.extract_student_ids_to_student_nums_from_html',
-                       return_value=student_ids_to_student_nums) as mock_student_ids_to_student_nums:
-                with patch('importer.extract_assignment_information_from_html',
-                           return_value=aeries_assignment_data) as mock_extract_assignment_information:
-                    with patch('importer.extract_assignment_submissions_from_html',
-                               return_value=aeries_submission_data) as mock_extract_assignment_submissions:
-                        with patch('importer.extract_gradebook_information_from_html',
-                                   return_value=(periods_to_classroom_data, 'token')) as mock_classroom_information:
-                            with patch('importer._join_google_classroom_and_aeries_data',
-                                       return_value=assignment_patch_data) as mock_patch_data:
-                                with patch('importer.update_grades_in_aeries',
-                                           return_value=assignment_patch_data) as mock_update_grades_in_aeries:
-                                    run_import(classroom_service=mock_classroom_service,
-                                               periods=periods,
-                                               s_cookie='s_cookie')
+    with patch('importer.GoogleClassroomData') as mock_google_classroom_data:
+        mock_google_classroom_data.return_value.periods_to_assignments = submissions
 
-                                mock_submissions.assert_called_once_with(classroom_service=mock_classroom_service,
-                                                                         periods=periods)
-                                mock_gradebook_ids.assert_called_once_with(periods=periods,
-                                                                           s_cookie='s_cookie')
-                                mock_student_ids_to_student_nums.assert_called_once_with(
-                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                    s_cookie='s_cookie'
-                                )
-                                mock_extract_assignment_information.assert_called_once_with(
-                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                    s_cookie='s_cookie'
-                                )
-                                mock_extract_assignment_submissions.assert_called_once_with(
-                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                    s_cookie='s_cookie'
-                                )
-                                mock_classroom_information.assert_called_once_with(
-                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                    s_cookie='s_cookie'
-                                )
-                                mock_patch_data.assert_called_once_with(
-                                    periods_to_assignment_data=submissions,
-                                    periods_to_gradebook_ids={1: '111/S', 2: '222/F'},
-                                    periods_to_student_ids_to_student_nums=student_ids_to_student_nums,
-                                    periods_to_assignment_name_to_aeries_assignments=aeries_assignment_data,
-                                    periods_to_assignment_ids_to_aeries_submissions=aeries_submission_data,
-                                    periods_to_classroom_data=periods_to_classroom_data,
-                                    s_cookie='s_cookie',
-                                    request_verification_token='token'
-                                )
-                                mock_update_grades_in_aeries.assert_called_once_with(
-                                    assignment_patch_data=assignment_patch_data,
-                                    s_cookie='s_cookie'
-                                )
+        with patch('importer.AeriesData') as mock_aeries_data:
+            mock_aeries_data.return_value.periods_to_gradebook_ids = {1: '111/S', 2: '222/F'}
+            mock_aeries_data.return_value.periods_to_student_ids_to_student_nums = student_ids_to_student_nums
+            mock_aeries_data.return_value.periods_to_assignment_information = aeries_assignment_data
+            mock_aeries_data.return_value.periods_to_assignment_submissions = aeries_submission_data
+            mock_aeries_data.return_value.periods_to_gradebook_information = periods_to_classroom_data
+
+            with patch('importer._join_google_classroom_and_aeries_data',
+                       return_value=assignment_patch_data) as mock_patch_data:
+                with patch.object(mock_aeries_data.return_value, 'update_grades_in_aeries') as mock_update_grades_in_aeries:
+                    run_import(classroom_service=mock_classroom_service,
+                               periods=periods,
+                               s_cookie='s_cookie')
+                    mock_google_classroom_data.assert_called_once_with(
+                        periods=periods,
+                        classroom_service=mock_classroom_service
+                    )
+                    mock_google_classroom_data.return_value.get_submissions.assert_called_once()
+                    mock_aeries_data.return_value.extract_gradebook_ids_from_html.assert_called_once()
+                    mock_aeries_data.return_value.extract_student_ids_to_student_nums_from_html.assert_called_once()
+                    mock_aeries_data.return_value.extract_assignment_information_from_html.assert_called_once()
+                    mock_aeries_data.return_value.extract_assignment_submissions_from_html.assert_called_once()
+                    mock_aeries_data.return_value.extract_gradebook_information_from_html.assert_called_once()
+
+                    mock_patch_data.assert_called_once_with(
+                        google_classroom_data=mock_google_classroom_data.return_value,
+                        aeries_data=mock_aeries_data.return_value
+                    )
+                    mock_update_grades_in_aeries.assert_called_once_with(assignment_patch_data=assignment_patch_data)
 
 
 def test_join_google_classroom_and_aeries_data():
@@ -213,6 +192,10 @@ def test_join_google_classroom_and_aeries_data():
                                       point_total=5,
                                       category='Practice')]
     }
+
+    mock_classroom_service = Mock()
+    google_classroom_data = GoogleClassroomData(periods=[1, 2], classroom_service=mock_classroom_service)
+    google_classroom_data.periods_to_assignments = periods_to_assignment_data
 
     periods_to_gradebook_ids = {
         1: '12345/S',
@@ -270,170 +253,316 @@ def test_join_google_classroom_and_aeries_data():
         )
     }
 
-    with patch('importer.create_aeries_assignment',
-               return_value=AeriesAssignmentData(id=91,
-                                                 point_total=5,
-                                                 category='Practice')) as mock_create_aeries_assignment:
-        with patch('importer.patch_aeries_assignment',
-                   side_effect=[AeriesAssignmentData(id=81,
-                                                     point_total=5,
-                                                     category='Practice'),
-                                AeriesAssignmentData(id=90,
-                                                     point_total=10,
-                                                     category='Performance')]) as mock_patch_aeries_assignment:
-            with patch('importer._generate_patch_data_for_assignment',
-                       side_effect=[[
-                           AssignmentPatchData(student_num=1000,
-                                               assignment_number=80,
-                                               grade=10),
-                           AssignmentPatchData(student_num=2000,
-                                               assignment_number=80,
-                                               grade=None)
-                       ], [
-                           AssignmentPatchData(student_num=1000,
-                                               assignment_number=81,
-                                               grade=3),
-                           AssignmentPatchData(student_num=2000,
-                                               assignment_number=81,
-                                               grade=4),
-                           AssignmentPatchData(student_num=3000,
-                                               assignment_number=81,
-                                               grade=1)
-                       ], [
-                           AssignmentPatchData(student_num=5000,
-                                               assignment_number=90,
-                                               grade=10),
-                           AssignmentPatchData(student_num=6000,
-                                               assignment_number=90,
-                                               grade=None)
-                       ], [
-                           AssignmentPatchData(student_num=5000,
-                                               assignment_number=91,
-                                               grade=3),
-                           AssignmentPatchData(student_num=6000,
-                                               assignment_number=91,
-                                               grade=4),
-                           AssignmentPatchData(student_num=7000,
-                                               assignment_number=91,
-                                               grade=1)
-                       ]]) as mock_generate_patch_data_for_assignment:
-                assert _join_google_classroom_and_aeries_data(
-                    periods_to_assignment_data=periods_to_assignment_data,
-                    periods_to_gradebook_ids=periods_to_gradebook_ids,
-                    periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
-                    periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
-                    periods_to_assignment_ids_to_aeries_submissions=aeries_submission_data,
-                    periods_to_classroom_data=periods_to_classroom_data,
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token'
-                ) == {
-                    '12345/S': [
-                        AssignmentPatchData(student_num=1000,
-                                            assignment_number=80,
-                                            grade=10),
-                        AssignmentPatchData(student_num=2000,
-                                            assignment_number=80,
-                                            grade=None),
-                        AssignmentPatchData(student_num=1000,
-                                            assignment_number=81,
-                                            grade=3),
-                        AssignmentPatchData(student_num=2000,
-                                            assignment_number=81,
-                                            grade=4),
-                        AssignmentPatchData(student_num=3000,
-                                            assignment_number=81,
-                                            grade=1)
-                    ],
-                    '6789/F': [
-                        AssignmentPatchData(student_num=5000,
-                                            assignment_number=90,
-                                            grade=10),
-                        AssignmentPatchData(student_num=6000,
-                                            assignment_number=90,
-                                            grade=None),
-                        AssignmentPatchData(student_num=5000,
-                                            assignment_number=91,
-                                            grade=3),
-                        AssignmentPatchData(student_num=6000,
-                                            assignment_number=91,
-                                            grade=4),
-                        AssignmentPatchData(student_num=7000,
-                                            assignment_number=91,
-                                            grade=1)
-                    ]
-                }
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
+    aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
+    aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
+    aeries_data.periods_to_assignment_submissions = aeries_submission_data
+    aeries_data.periods_to_gradebook_information = periods_to_classroom_data
+    aeries_data.request_verification_token = 'request_verification_token'
 
-                mock_create_aeries_assignment.assert_called_once_with(
-                    gradebook_number='6789',
-                    assignment_id=91,
-                    assignment_name='hw3',
-                    point_total=5,
-                    category=AeriesCategory(id=1,
-                                            name='Practice',
-                                            weight=0.5),
-                    end_term_date=Arrow(2022, 1, 22),
-                    s_cookie='s_cookie',
-                    request_verification_token='request_verification_token')
+    with patch('importer._get_or_create_aeries_assignment',
+               side_effect=[
+                   (AeriesAssignmentData(id=80,
+                                         point_total=10,
+                                         category='Practice'), 82),
+                   (AeriesAssignmentData(id=81,
+                                         point_total=5,
+                                         category='Practice'), 82),
+                   (AeriesAssignmentData(id=91,
+                                         point_total=5,
+                                         category='Practice'), 92),
+                   (AeriesAssignmentData(id=90,
+                                         point_total=10,
+                                         category='Performance'), 92)
+               ]) as mock_get_or_create_aeries_assignment:
+        with patch('importer._generate_patch_data_for_assignment',
+                   side_effect=[[
+                       AssignmentPatchData(student_num=1000,
+                                           assignment_number=80,
+                                           grade=10),
+                       AssignmentPatchData(student_num=2000,
+                                           assignment_number=80,
+                                           grade=None)
+                   ], [
+                       AssignmentPatchData(student_num=1000,
+                                           assignment_number=81,
+                                           grade=3),
+                       AssignmentPatchData(student_num=2000,
+                                           assignment_number=81,
+                                           grade=4),
+                       AssignmentPatchData(student_num=3000,
+                                           assignment_number=81,
+                                           grade=1)
+                   ], [
+                       AssignmentPatchData(student_num=5000,
+                                           assignment_number=90,
+                                           grade=10),
+                       AssignmentPatchData(student_num=6000,
+                                           assignment_number=90,
+                                           grade=None)
+                   ], [
+                       AssignmentPatchData(student_num=5000,
+                                           assignment_number=91,
+                                           grade=3),
+                       AssignmentPatchData(student_num=6000,
+                                           assignment_number=91,
+                                           grade=4),
+                       AssignmentPatchData(student_num=7000,
+                                           assignment_number=91,
+                                           grade=1)
+                   ]]) as mock_generate_patch_data_for_assignment:
+            assert _join_google_classroom_and_aeries_data(
+                google_classroom_data=google_classroom_data,
+                aeries_data=aeries_data
+            ) == {
+                '12345/S': [
+                    AssignmentPatchData(student_num=1000,
+                                        assignment_number=80,
+                                        grade=10),
+                    AssignmentPatchData(student_num=2000,
+                                        assignment_number=80,
+                                        grade=None),
+                    AssignmentPatchData(student_num=1000,
+                                        assignment_number=81,
+                                        grade=3),
+                    AssignmentPatchData(student_num=2000,
+                                        assignment_number=81,
+                                        grade=4),
+                    AssignmentPatchData(student_num=3000,
+                                        assignment_number=81,
+                                        grade=1)
+                ],
+                '6789/F': [
+                    AssignmentPatchData(student_num=5000,
+                                        assignment_number=90,
+                                        grade=10),
+                    AssignmentPatchData(student_num=6000,
+                                        assignment_number=90,
+                                        grade=None),
+                    AssignmentPatchData(student_num=5000,
+                                        assignment_number=91,
+                                        grade=3),
+                    AssignmentPatchData(student_num=6000,
+                                        assignment_number=91,
+                                        grade=4),
+                    AssignmentPatchData(student_num=7000,
+                                        assignment_number=91,
+                                        grade=1)
+                ]
+            }
 
-                mock_patch_aeries_assignment.assert_has_calls([
-                    call(gradebook_number='12345',
-                         assignment_id=81,
-                         assignment_name='hw2',
-                         point_total=5,
-                         category=AeriesCategory(id=1,
-                                                 name='Practice',
-                                                 weight=1.0),
-                         end_term_date=Arrow(2022, 6, 4),
-                         s_cookie='s_cookie',
-                         request_verification_token='request_verification_token'),
-                    call(gradebook_number='6789',
-                         assignment_id=90,
-                         assignment_name='hw1',
-                         point_total=10,
-                         category=AeriesCategory(id=2,
-                                                 name='Performance',
-                                                 weight=0.5),
-                         end_term_date=Arrow(2022, 1, 22),
-                         s_cookie='s_cookie',
-                         request_verification_token='request_verification_token')])
+            mock_get_or_create_aeries_assignment.assert_has_calls([
+                call(google_classroom_assignment=google_classroom_data.periods_to_assignments[1][0],
+                     aeries_data=aeries_data,
+                     period=1,
+                     next_assignment_id=82),
+                call(google_classroom_assignment=google_classroom_data.periods_to_assignments[1][1],
+                     aeries_data=aeries_data,
+                     period=1,
+                     next_assignment_id=82),
+                call(google_classroom_assignment=google_classroom_data.periods_to_assignments[2][0],
+                     aeries_data=aeries_data,
+                     period=2,
+                     next_assignment_id=91),
+                call(google_classroom_assignment=google_classroom_data.periods_to_assignments[2][1],
+                     aeries_data=aeries_data,
+                     period=2,
+                     next_assignment_id=92),
+            ])
 
-                mock_generate_patch_data_for_assignment.assert_has_calls([
-                    call(google_classroom_submissions={1: 10, 2: None},
-                         aeries_submissions={1000: '', 2000: 'N/A', 3000: 'MI'},
-                         aeries_assignment_id=80,
-                         student_ids_to_student_nums={
-                             1: 1000,
-                             2: 2000,
-                             3: 3000
-                         }),
-                    call(google_classroom_submissions={1: 3, 2: 4, 3: 1},
-                         aeries_submissions={3000: '3', 2000: '4'},
-                         aeries_assignment_id=81,
-                         student_ids_to_student_nums={
-                             1: 1000,
-                             2: 2000,
-                             3: 3000
-                         }),
-                    call(google_classroom_submissions={1: 10, 2: None},
-                         aeries_submissions={6000: '10'},
-                         aeries_assignment_id=90,
-                         student_ids_to_student_nums={
-                             1: 5000,
-                             2: 6000,
-                             3: 7000
-                         }),
-                    call(google_classroom_submissions={1: 3, 2: 4, 3: 1},
-                         aeries_submissions={},
-                         aeries_assignment_id=91,
-                         student_ids_to_student_nums={
-                             1: 5000,
-                             2: 6000,
-                             3: 7000
-                         })
-                ])
+            mock_generate_patch_data_for_assignment.assert_has_calls([
+                call(google_classroom_data=google_classroom_data,
+                     google_classroom_submissions={1: 10, 2: None},
+                     aeries_data=aeries_data,
+                     aeries_assignment_id=80,
+                     period=1),
+                call(google_classroom_data=google_classroom_data,
+                     google_classroom_submissions={1: 3, 2: 4, 3: 1},
+                     aeries_data=aeries_data,
+                     aeries_assignment_id=81,
+                     period=1),
+                call(google_classroom_data=google_classroom_data,
+                     google_classroom_submissions={1: 10, 2: None},
+                     aeries_data=aeries_data,
+                     aeries_assignment_id=91,
+                     period=2),
+                call(google_classroom_data=google_classroom_data,
+                     google_classroom_submissions={1: 3, 2: 4, 3: 1},
+                     aeries_data=aeries_data,
+                     aeries_assignment_id=90,
+                     period=2)
+            ])
 
 
-def test_join_google_classroom_and_aeries_data_exception():
+def test_get_or_create_aeries_assignment_creation():
+    periods_to_gradebook_ids = {
+        1: '12345/F'
+    }
+
+    periods_to_student_ids_to_student_nums = {
+        1: {
+            1: 1000,
+            2: 2000,
+            3: 3000
+        }
+    }
+
+    periods_to_assignment_name_to_aeries_assignments = {1: {}}
+    aeries_submission_data = {1: {}}
+
+    periods_to_classroom_data = {
+        1: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=1.0)},
+            end_term_dates={'F': Arrow(2022, 1, 22)}
+        )
+    }
+
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
+    aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
+    aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
+    aeries_data.periods_to_assignment_submissions = aeries_submission_data
+    aeries_data.periods_to_gradebook_information = periods_to_classroom_data
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, 'create_aeries_assignment',
+                      return_value=AeriesAssignmentData(id=80,
+                                                        point_total=10,
+                                                        category='Practice')) as mock_create_aeries_assignment:
+        assert _get_or_create_aeries_assignment(
+            google_classroom_assignment=GoogleClassroomAssignment(submissions={1: 3, 2: 4, 3: 1},
+                                                                  assignment_name='hw2',
+                                                                  point_total=5,
+                                                                  category='Practice'),
+            aeries_data=aeries_data,
+            period=1,
+            next_assignment_id=80
+        ) == (AeriesAssignmentData(id=80,
+                                   point_total=10,
+                                   category='Practice'), 81)
+
+        mock_create_aeries_assignment.assert_has_calls([
+            call(gradebook_number='12345',
+                 assignment_id=80,
+                 assignment_name='hw2',
+                 point_total=5,
+                 category=AeriesCategory(name='Practice', weight=1.0, id=1),
+                 end_term_date=Arrow(2022, 1, 22))
+        ])
+
+
+def test_get_or_create_aeries_assignment_patch():
+    periods_to_gradebook_ids = {
+        1: '12345/F'
+    }
+
+    periods_to_student_ids_to_student_nums = {
+        1: {
+            1: 1000,
+            2: 2000,
+            3: 3000
+        }
+    }
+
+    periods_to_assignment_name_to_aeries_assignments = {1: {'hw1': AeriesAssignmentData(id=80,
+                                                                                        point_total=8,
+                                                                                        category='Practice')}}
+    aeries_submission_data = {1: {}}
+
+    periods_to_classroom_data = {
+        1: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=1.0)},
+            end_term_dates={'F': Arrow(2022, 1, 22)}
+        )
+    }
+
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
+    aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
+    aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
+    aeries_data.periods_to_assignment_submissions = aeries_submission_data
+    aeries_data.periods_to_gradebook_information = periods_to_classroom_data
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    with patch.object(aeries_data, 'patch_aeries_assignment',
+                      return_value=AeriesAssignmentData(id=80,
+                                                        point_total=10,
+                                                        category='Practice')) as mock_patch_aeries_assignment:
+        assert _get_or_create_aeries_assignment(
+            google_classroom_assignment=GoogleClassroomAssignment(submissions={1: 3, 2: 4, 3: 1},
+                                                                  assignment_name='hw1',
+                                                                  point_total=5,
+                                                                  category='Practice'),
+            aeries_data=aeries_data,
+            period=1,
+            next_assignment_id=91
+        ) == (AeriesAssignmentData(id=80,
+                                   point_total=10,
+                                   category='Practice'), 91)
+        mock_patch_aeries_assignment.assert_has_calls([
+            call(gradebook_number='12345',
+                 assignment_id=80,
+                 assignment_name='hw1',
+                 point_total=5,
+                 category=AeriesCategory(name='Practice', weight=1.0, id=1),
+                 end_term_date=Arrow(2022, 1, 22))
+        ])
+
+
+def test_get_or_create_aeries_assignment_existing():
+    periods_to_gradebook_ids = {
+        1: '12345/F'
+    }
+
+    periods_to_student_ids_to_student_nums = {
+        1: {
+            1: 1000,
+            2: 2000,
+            3: 3000
+        }
+    }
+
+    periods_to_assignment_name_to_aeries_assignments = {1: {'hw1': AeriesAssignmentData(id=80,
+                                                                                        point_total=5,
+                                                                                        category='Practice')}}
+    aeries_submission_data = {1: {}}
+
+    periods_to_classroom_data = {
+        1: AeriesClassroomData(
+            categories={'Practice': AeriesCategory(id=1,
+                                                   name='Practice',
+                                                   weight=1.0)},
+            end_term_dates={'F': Arrow(2022, 1, 22)}
+        )
+    }
+
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
+    aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
+    aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
+    aeries_data.periods_to_assignment_submissions = aeries_submission_data
+    aeries_data.periods_to_gradebook_information = periods_to_classroom_data
+    aeries_data.request_verification_token = 'request_verification_token'
+
+    assert _get_or_create_aeries_assignment(
+        google_classroom_assignment=GoogleClassroomAssignment(submissions={1: 3, 2: 4, 3: 1},
+                                                              assignment_name='hw1',
+                                                              point_total=5,
+                                                              category='Practice'),
+        aeries_data=aeries_data,
+        period=1,
+        next_assignment_id=91
+    ) == (AeriesAssignmentData(id=80,
+                               point_total=5,
+                               category='Practice'), 91)
+
+
+def test_get_or_create_aeries_assignment_exception():
     periods_to_assignment_data = {
         1: [GoogleClassroomAssignment(submissions={1: 10, 2: None},
                                       assignment_name='hw1',
@@ -452,6 +581,9 @@ def test_join_google_classroom_and_aeries_data_exception():
                                       point_total=5,
                                       category='Practice')]
     }
+
+    mock_google_classroom_data = Mock()
+    mock_google_classroom_data.periods_to_assignments = periods_to_assignment_data
 
     periods_to_gradebook_ids = {
         1: '12345/S',
@@ -501,6 +633,14 @@ def test_join_google_classroom_and_aeries_data_exception():
         )
     }
 
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
+    aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
+    aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
+    aeries_data.periods_to_assignment_submissions = aeries_submission_data
+    aeries_data.periods_to_gradebook_information = periods_to_classroom_data
+    aeries_data.request_verification_token = 'request_verification_token'
+
     with raises(ValueError, match='Expected gradebook number to be of pattern <number>/<S or F>, '
                                   'but was Bad Format/F'):
         with patch('importer._generate_patch_data_for_assignment',
@@ -530,41 +670,26 @@ def test_join_google_classroom_and_aeries_data_exception():
                                            grade=None)
                    ]]) as mock_generate_patch_data_for_assignment:
             _join_google_classroom_and_aeries_data(
-                periods_to_assignment_data=periods_to_assignment_data,
-                periods_to_gradebook_ids=periods_to_gradebook_ids,
-                periods_to_student_ids_to_student_nums=periods_to_student_ids_to_student_nums,
-                periods_to_assignment_name_to_aeries_assignments=periods_to_assignment_name_to_aeries_assignments,
-                periods_to_assignment_ids_to_aeries_submissions=aeries_submission_data,
-                periods_to_classroom_data=periods_to_classroom_data,
-                s_cookie='s_cookie',
-                request_verification_token='request_verification_token'
+                google_classroom_data=mock_google_classroom_data,
+                aeries_data=aeries_data
             )
 
             mock_generate_patch_data_for_assignment.assert_has_calls([
-                call(google_classroom_submissions={1: 10, 2: None},
-                     aeries_submissions={1000: '', 2000: 'N/A', 3000: 'MI'},
+                call(google_classroom_data=mock_google_classroom_data,
+                     google_classroom_submissions={1: 10, 2: None},
+                     aeries_data=aeries_data,
                      aeries_assignment_id=80,
-                     student_ids_to_student_nums={
-                         1: 1000,
-                         2: 2000,
-                         3: 3000
-                     }),
-                call(google_classroom_submissions={1: 3, 2: 4, 3: 1},
-                     aeries_submissions={3000: '3', 2000: '4'},
+                     period=1),
+                call(google_classroom_data=mock_google_classroom_data,
+                     google_classroom_submissions={1: 3, 2: 4, 3: 1},
+                     aeries_data=aeries_data,
                      aeries_assignment_id=81,
-                     student_ids_to_student_nums={
-                         1: 1000,
-                         2: 2000,
-                         3: 3000
-                     }),
-                call(google_classroom_submissions={1: 10, 2: None},
-                     aeries_submissions={6000: '10'},
+                     period=1),
+                call(google_classroom_data=mock_google_classroom_data,
+                     google_classroom_submissions={1: 10, 2: None},
+                     aeries_data=aeries_data,
                      aeries_assignment_id=90,
-                     student_ids_to_student_nums={
-                         1: 5000,
-                         2: 6000,
-                         3: 7000
-                     })
+                     period=2)
             ])
 
 
@@ -617,11 +742,17 @@ def test_generate_patch_data_for_assignment(google_classroom_submissions,
                                             aeries_submissions,
                                             student_ids_to_student_nums,
                                             expected_assignment_patch_data):
+    google_classroom_data = GoogleClassroomData(periods=[1], classroom_service=Mock())
+    aeries_data = AeriesData(periods=[1], s_cookie='s_cookie')
+    aeries_data.periods_to_student_ids_to_student_nums = {1: student_ids_to_student_nums}
+    aeries_data.periods_to_assignment_submissions = {1: {80: aeries_submissions}}
+
     assignment_patch_data = _generate_patch_data_for_assignment(
+        google_classroom_data=google_classroom_data,
         google_classroom_submissions=google_classroom_submissions,
-        aeries_submissions=aeries_submissions,
+        aeries_data=aeries_data,
         aeries_assignment_id=80,
-        student_ids_to_student_nums=student_ids_to_student_nums,
+        period=1
     )
 
     assert assignment_patch_data == expected_assignment_patch_data
@@ -643,11 +774,20 @@ def test_generate_patch_data_for_assignment_exception():
         1000: '', 2000: 'N/A', 3000: 'MI'
     }
 
-    with raises(ValueError, match='Student id 1000 found in Google Classroom who is not enrolled in the Aeries '
-                                  'roster. Please check Aeries if there needs to be a student added to the class.'):
+    aeries_data = AeriesData(periods=[1], s_cookie='s_cookie')
+    aeries_data.periods_to_student_ids_to_student_nums = {1: student_ids_to_student_nums}
+    aeries_data.periods_to_assignment_submissions = {1: {80: aeries_submissions}}
+
+    google_classroom_data = GoogleClassroomData(periods=[1], classroom_service=Mock())
+    google_classroom_data.user_ids_to_names = {1000: 'John Doe'}
+
+    with raises(ValueError, match='Student John Doe found in Google Classroom who is not enrolled in the Aeries '
+                                  'roster. Please check Aeries if they need to added to the class, or if they '
+                                  'should be dropped from the Google Classroom roster.'):
         _generate_patch_data_for_assignment(
+            google_classroom_data=google_classroom_data,
             google_classroom_submissions=google_classroom_submissions,
-            aeries_submissions=aeries_submissions,
+            aeries_data=aeries_data,
             aeries_assignment_id=80,
-            student_ids_to_student_nums=student_ids_to_student_nums,
+            period=1
         )
