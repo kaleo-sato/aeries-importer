@@ -87,7 +87,6 @@ def _get_or_create_aeries_assignment(
     aeries_assignments = aeries_data.periods_to_assignment_information[period]
     gradebook_id = aeries_data.periods_to_gradebook_ids[period]
 
-    print(assignment_name, aeries_assignments)
     if assignment_name not in aeries_assignments:
         gradebook_number_match = GRADEBOOK_NUMBER_PATTERN.match(gradebook_id)
 
