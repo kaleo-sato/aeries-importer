@@ -42,7 +42,7 @@ class GoogleClassroomData:
 
         for period, course_id in periods_to_course_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            user_ids_to_student_ids = self._get_user_ids_to_student_ids(course_id=course_id, period=period)
+            user_ids_to_student_ids = self._get_user_ids_to_student_ids(course_id=course_id)
 
             coursework_ids_to_assignment_data = self._get_all_published_coursework(course_id=course_id)
 

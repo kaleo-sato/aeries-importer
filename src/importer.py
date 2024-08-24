@@ -48,7 +48,7 @@ def run_import(classroom_service,
     )
     validator.generate_discrepancy_report()
     validator.log_discrepancies()
-    click.echo('Grades have been successfully validated.')
+    click.echo('\nGrades have been validated.')
 
 
 def _join_google_classroom_and_aeries_data(

@@ -21,6 +21,7 @@ SCORES_BY_CLASS_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/scoresBy
 SCORES_BY_CLASS_ASSIGNMENT_INFO_TABLE_CLASS_NAME = 'assignment-header'
 SCORES_BY_CLASS_ASSIGNMENT_NAME_CLASS_NAME = 'scores-by-class-override'
 SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME = 'students'
+SCORES_BY_STUDENT_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/ScoresByStudent/{student_num}/{MILPITAS_SCHOOL_CODE}'
 STUDENT_ID_TAG_NAME = 'data-stuid'
 STUDENT_NUMBER_TAG_NAME = 'data-sn'
 SCORE_TAG_NAME = 'data-original-value'
@@ -493,7 +494,10 @@ class AeriesData:
 
     def extract_overall_grades_from_html(self, period: int) -> dict[int, float]:
         """
-        Extract the overall grades from the Aeries HTML for the given period.
+        Extract the overall grades from the Aeries HTML for the given period. This function not very efficient compared
+        to extracting grades from the overall Gradebook page. It uses individual student score pages to get the
+        0.01%-precise overall grade.
+
         :return: Mapping of student id to overall grade.
         """
         overall_grades = {}
@@ -501,15 +505,18 @@ class AeriesData:
                    'Cookie': f's={self.s_cookie}'}
 
         gradebook_id = self.periods_to_gradebook_ids[period]
-        response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
-        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+        student_ids_to_student_nums = self.periods_to_student_ids_to_student_nums[period]
 
-        for tag in (beautiful_soup
-                    .find('table', class_=SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME)
-                    .find_all('tr', class_='row')):
-            student_id = int(tag.get(STUDENT_ID_TAG_NAME))
+        for student_id, student_num in student_ids_to_student_nums.items():
+            response = requests.get(SCORES_BY_STUDENT_URL
+                                    .format(gradebook_id=gradebook_id,
+                                            student_num=student_num,
+                                            MILPITAS_SCHOOL_CODE=MILPITAS_SCHOOL_CODE),
+                                    headers=headers)
+            beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
-            overall_grade = float(tag.find('td', attrs={'data-column-name': CURRENT_PERCENTAGE_TAG_NAME}).string)
+            score = beautiful_soup.find('div', id='overallPercentDisplay').string
+            overall_grade = float(score[:-1])  # strip off % sign
             overall_grades[student_id] = overall_grade
 
         return overall_grades

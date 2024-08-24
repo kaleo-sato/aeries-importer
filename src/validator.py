@@ -46,7 +46,7 @@ class Validator:
             for student_id, google_classroom_overall_grade in google_classroom_overall_grades.items():
                 aeries_overall_grade = aeries_overall_grades[student_id]
 
-                if not math.isclose(google_classroom_overall_grade, aeries_overall_grade, abs_tol=0.1):
+                if not math.isclose(google_classroom_overall_grade, aeries_overall_grade, abs_tol=0.01):
                     discrepancy = OverallGradeDiscrepancy(google_classroom_overall_grade=google_classroom_overall_grade,
                                                           aeries_overall_grade=aeries_overall_grade)
                     self.periods_to_student_overall_grade_discrepancies[period][student_id] = discrepancy
@@ -65,9 +65,11 @@ class Validator:
                 continue
 
             click.echo(f'Period {period}:')
-            for student_id, discrepancy in period_discrepancies.items():
+            click.echo("\t{:<30}{:>20}{:>10}".format('Student', 'Google Classroom', 'Aeries'))
+            for student_id, discrepancy in sorted(
+                    period_discrepancies.items(),
+                    key=lambda pair: periods_to_student_ids_to_names[period][pair[0]].split(' ')[-1]):
                 student_name = periods_to_student_ids_to_names[period][student_id]
                 google_classroom_grade = discrepancy.google_classroom_overall_grade
                 aeries_grade = discrepancy.aeries_overall_grade
-                click.echo(f'\tStudent: {student_name}, Google Classroom Grade: {google_classroom_grade}, '
-                           f'Aeries Grade: {aeries_grade}')
+                click.echo(f"\t{student_name:<30}{google_classroom_grade:>20.2f}{aeries_grade:>10}")
