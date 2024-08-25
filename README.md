@@ -16,6 +16,12 @@ Import grades from Google Classroom to Aeries.
   * Set default browser and path to executable:
     * `export BROWSER="/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"`
     * `export PATH="$PATH:/home/cung/.local/bin"`
+* Make your Google Chrome shortcut allow remote port debugging:
+  * i.e. `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=/Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1`
+  * You can go to `chrome://version/` in the browser to find the exact path to the profile of your commonly-used Chrome window.
+* Symlink a new Default profile that's created for all new Chrome Driver requests in the program to the existing profile.
+  * `ln -s /Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1 /Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1/Default`  
+
 
 ## Setup Instructions
 1. Change directories to the `aeries-importer` top level directory. Save the `credentials.json` file here.
