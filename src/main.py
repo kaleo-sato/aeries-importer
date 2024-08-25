@@ -8,6 +8,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from importer import run_import
+from web_driver import get_aeries_cookie
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/classroom.coursework.students',
@@ -61,13 +62,13 @@ def _split_periods(periods: str) -> list[int]:
 
 @click.command()
 @click.option('--periods', metavar='<comma-separated-period-nums>', prompt=True)
-@click.option('--s-cookie', prompt=True)
-def run_aeries_importer(periods: str, s_cookie: str):
+def run_aeries_importer(periods: str):
     """
     Runs the CLI for importing grades from Google Classroom to Aeries.
     """
     creds = authenticate()
     classroom_service = build(serviceName='classroom', version='v1', credentials=creds)
+    s_cookie = get_aeries_cookie()
 
     periods_list = _split_periods(periods=periods)
 
