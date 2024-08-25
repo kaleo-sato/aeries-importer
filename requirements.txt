@@ -7,3 +7,5 @@ google-auth-httplib2
 google-auth-oauthlib
 pytest
 requests
+selenium
+webdriver_manager
