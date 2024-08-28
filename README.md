@@ -24,14 +24,10 @@ Import grades from Google Classroom to Aeries.
 
 
 ## Setup Instructions
-1. Change directories to the `aeries-importer` top level directory. Save the `credentials.json` file here.
-2. `python3 -m venv .venv`
-3. `pip install -r requirements.txt`
-4. `. .venv/bin/activate`
-5. `pip install --editable .`
-
-Run the program by specifying period numbers in a comma-separated list. Login to Aeries on Chrome. Then: Right click > Inspect. Go to the Application tab at the top of the console, and click the cookies for Aeries. In the table of values, there should be a row with the Name `s`, and a sequence of characters as its value. Copy that value and use specify it in the command as such:
-`aeries-importer --periods 1,2,4 --s-cookie abcd1234edfg`
+1. Login to Aeries on Chrome. Must have port 9222 open/enabled for Chrome debugging.
+2. Save `aeries-importer` to your home directory. Save the `credentials.json` file here.
+3. Run the `run.sh` file
+4. When prompted, specify period numbers in a comma-separated list: `1,2,4`
 
 ## Execution Notes and Tips
 * Zeros are imported as "MI" on Aeries to indicate in red coloring to students that their assignment grade needs attention.
