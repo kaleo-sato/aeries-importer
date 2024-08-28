@@ -5,28 +5,20 @@ Import grades from Google Classroom to Aeries.
 * Python 3
 * Pip
 * virutalenv
+* Make your Google Chrome shortcut allow remote port debugging:
+  * i.e. `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir=/Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1`
+  * You can go to `chrome://version/` in the browser to find the exact path to the profile of your commonly-used Chrome window.
 * Have Kaleo add your email to the [list of test users](https://console.cloud.google.com/apis/credentials/consent?authuser=1&project=aeries-importer).
   * This is to enable Google authentication for Google Classroom.
 * Download the credentials.json file from the Google Cloud application (talk to Kaleo again for this file).
 * You _must_ specify period numbers in the Section of each of your classes on Google Classroom. e.g.`Period 1`. This is necessary to:
   * Determine which active courses actually belong to you and contain student work that needs to be imported
   * Link a specific period to the correct gradebook an Aeries
-* I recommend to [install Bash](https://www.howtogeek.com/249966/how-to-install-and-use-the-linux-bash-shell-on-windows-10/) if you are using Windows.
-  * Install pip: `sudo apt update` and `sudo apt install python3-pip`
-  * Set default browser and path to executable:
-    * `export BROWSER="/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"`
-    * `export PATH="$PATH:/home/cung/.local/bin"`
-* Make your Google Chrome shortcut allow remote port debugging:
-  * i.e. `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir=/Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1`
-  * You can go to `chrome://version/` in the browser to find the exact path to the profile of your commonly-used Chrome window.
-* Symlink a new Default profile that's created for all new Chrome Driver requests in the program to the existing profile.
-  * `ln -s /Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1 /Users/kaleo.sato/Library/Application\ Support/Google/Chrome/Profile\ 1/Default`  
-
 
 ## Setup Instructions
 1. Login to Aeries on Chrome. Must have port 9222 open/enabled for Chrome debugging.
 2. Save `aeries-importer` to your home directory. Save the `credentials.json` file here.
-3. Run the `run.sh` file
+3. Run the `run.sh` file or `run.bat` file if on Windows.
 4. When prompted, specify period numbers in a comma-separated list: `1,2,4`
 
 ## Execution Notes and Tips
