@@ -31,45 +31,47 @@ def test_validator_generate_discrepancy_report():
         4: 60
     }
 
-    mock_aeries_grades = {
-        1: 90.15,
-        2: 80,
-        3: 100,
-        4: 69.9
+    aeries_data.periods_to_student_ids_to_overall_grades = {
+        1: {
+            1: 90.15,
+            2: 80,
+            3: 100,
+            4: 69.9
+        },
+        2: {
+            1: 90.15,
+            2: 80,
+            3: 100,
+            4: 69.9
+        }
     }
 
     with patch.object(google_classroom_data, 'get_overall_grades',
                       return_value=mock_google_classroom_grades) as mock_get_overall_grades:
-        with patch.object(aeries_data, 'extract_overall_grades_from_html',
-                          return_value=mock_aeries_grades) as mock_extract_overall_grades_from_html:
-            validator.generate_discrepancy_report()
-            assert validator.periods_to_student_overall_grade_discrepancies == {
-                1: {
-                    1: OverallGradeDiscrepancy(google_classroom_overall_grade=90,
-                                               aeries_overall_grade=90.15),
-                    3: OverallGradeDiscrepancy(google_classroom_overall_grade=70,
-                                               aeries_overall_grade=100),
-                    4: OverallGradeDiscrepancy(google_classroom_overall_grade=60,
-                                               aeries_overall_grade=69.9)
-                },
-                2: {
-                    1: OverallGradeDiscrepancy(google_classroom_overall_grade=90,
-                                               aeries_overall_grade=90.15),
-                    3: OverallGradeDiscrepancy(google_classroom_overall_grade=70,
-                                               aeries_overall_grade=100),
-                    4: OverallGradeDiscrepancy(google_classroom_overall_grade=60,
-                                               aeries_overall_grade=69.9)
-                }
+        validator.generate_discrepancy_report()
+        assert validator.periods_to_student_overall_grade_discrepancies == {
+            1: {
+                1: OverallGradeDiscrepancy(google_classroom_overall_grade=90,
+                                           aeries_overall_grade=90.15),
+                3: OverallGradeDiscrepancy(google_classroom_overall_grade=70,
+                                           aeries_overall_grade=100),
+                4: OverallGradeDiscrepancy(google_classroom_overall_grade=60,
+                                           aeries_overall_grade=69.9)
+            },
+            2: {
+                1: OverallGradeDiscrepancy(google_classroom_overall_grade=90,
+                                           aeries_overall_grade=90.15),
+                3: OverallGradeDiscrepancy(google_classroom_overall_grade=70,
+                                           aeries_overall_grade=100),
+                4: OverallGradeDiscrepancy(google_classroom_overall_grade=60,
+                                           aeries_overall_grade=69.9)
             }
+        }
 
-            mock_get_overall_grades.assert_has_calls([
-                call(period=1, categories_to_weights={'Practice': 0.5, 'Performance': 0.5}),
-                call(period=2, categories_to_weights={'Practice': 0.3, 'Participation': 0.7})
-            ])
-            mock_extract_overall_grades_from_html.assert_has_calls([
-                call(period=1),
-                call(period=2)
-            ])
+        mock_get_overall_grades.assert_has_calls([
+            call(period=1, categories_to_weights={'Practice': 0.5, 'Performance': 0.5}),
+            call(period=2, categories_to_weights={'Practice': 0.3, 'Participation': 0.7})
+        ])
 
 
 def test_log_discrepancies_empty():

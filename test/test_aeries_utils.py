@@ -1,4 +1,5 @@
-from unittest.mock import Mock, patch, call
+from concurrent.futures import Future
+from unittest.mock import Mock, patch, call, MagicMock
 
 from arrow import Arrow
 from bs4 import Tag, NavigableString
@@ -979,7 +980,7 @@ def test_extract_overall_grades_from_html():
     with (patch('aeries_utils.requests.get', return_value=mock_response) as mock_requests_get):
         with patch('aeries_utils.BeautifulSoup',
                    side_effect=[mock_beautiful_soup, mock_beautiful_soup_2]) as mock_beautiful_soup_create:
-            assert aeries_data.extract_overall_grades_from_html(period=1) == {
+            assert aeries_data._extract_overall_grades_from_html(period=1) == {
                 1: 100,
                 2: 96.65
             }

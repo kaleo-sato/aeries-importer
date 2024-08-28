@@ -316,41 +316,41 @@ def test_join_google_classroom_and_aeries_data():
                 google_classroom_data=google_classroom_data,
                 aeries_data=aeries_data
             ) == {
-                '12345/S': [
-                    AssignmentPatchData(student_num=1000,
-                                        assignment_number=80,
-                                        grade=10),
-                    AssignmentPatchData(student_num=2000,
-                                        assignment_number=80,
-                                        grade=None),
-                    AssignmentPatchData(student_num=1000,
-                                        assignment_number=81,
-                                        grade=3),
-                    AssignmentPatchData(student_num=2000,
-                                        assignment_number=81,
-                                        grade=4),
-                    AssignmentPatchData(student_num=3000,
-                                        assignment_number=81,
-                                        grade=1)
-                ],
-                '6789/F': [
-                    AssignmentPatchData(student_num=5000,
-                                        assignment_number=90,
-                                        grade=10),
-                    AssignmentPatchData(student_num=6000,
-                                        assignment_number=90,
-                                        grade=None),
-                    AssignmentPatchData(student_num=5000,
-                                        assignment_number=91,
-                                        grade=3),
-                    AssignmentPatchData(student_num=6000,
-                                        assignment_number=91,
-                                        grade=4),
-                    AssignmentPatchData(student_num=7000,
-                                        assignment_number=91,
-                                        grade=1)
-                ]
-            }
+                       '12345/S': [
+                           AssignmentPatchData(student_num=1000,
+                                               assignment_number=80,
+                                               grade=10),
+                           AssignmentPatchData(student_num=2000,
+                                               assignment_number=80,
+                                               grade=None),
+                           AssignmentPatchData(student_num=1000,
+                                               assignment_number=81,
+                                               grade=3),
+                           AssignmentPatchData(student_num=2000,
+                                               assignment_number=81,
+                                               grade=4),
+                           AssignmentPatchData(student_num=3000,
+                                               assignment_number=81,
+                                               grade=1)
+                       ],
+                       '6789/F': [
+                           AssignmentPatchData(student_num=5000,
+                                               assignment_number=90,
+                                               grade=10),
+                           AssignmentPatchData(student_num=6000,
+                                               assignment_number=90,
+                                               grade=None),
+                           AssignmentPatchData(student_num=5000,
+                                               assignment_number=91,
+                                               grade=3),
+                           AssignmentPatchData(student_num=6000,
+                                               assignment_number=91,
+                                               grade=4),
+                           AssignmentPatchData(student_num=7000,
+                                               assignment_number=91,
+                                               grade=1)
+                       ]
+                   }
 
             mock_get_or_create_aeries_assignment.assert_has_calls([
                 call(google_classroom_assignment=google_classroom_data.periods_to_assignments[1][0],
@@ -695,49 +695,49 @@ def test_get_or_create_aeries_assignment_exception():
 
 @mark.parametrize('google_classroom_submissions,aeries_submissions,student_ids_to_student_nums,'
                   'expected_assignment_patch_data', (
-        ({1: None, 2: None}, {1000: '', 2000: '10', 3000: 'MI'}, {1: 1000, 2: 2000, 3: 3000},
-         [
-             AssignmentPatchData(student_num=2000,
-                                 assignment_number=80,
-                                 grade=None)
-         ]),
-        ({1: 3, 2: 0, 3: 0}, {1000: '', 3000: '3', 2000: 'MI'}, {1: 1000, 2: 2000, 3: 3000},
-         [
-             AssignmentPatchData(student_num=1000,
-                                 assignment_number=80,
-                                 grade=3),
-             AssignmentPatchData(student_num=3000,
-                                 assignment_number=80,
-                                 grade=0)
-         ]),
-        ({1: 3, 2: 10, 3: 20, 4: 30, 5: 50}, {1000: '', 2000: 'N/A', 3000: 'MI', 4000: '10', 5000: 50},
-         {1: 1000, 2: 2000, 3: 3000, 4: 4000, 5: 5000},
-         [
-             AssignmentPatchData(student_num=1000,
-                                 assignment_number=80,
-                                 grade=3),
-             AssignmentPatchData(student_num=2000,
-                                 assignment_number=80,
-                                 grade=10),
-             AssignmentPatchData(student_num=3000,
-                                 assignment_number=80,
-                                 grade=20),
-             AssignmentPatchData(student_num=4000,
-                                 assignment_number=80,
-                                 grade=30)
-         ]),
-        ({1: 0, 2: 10, 3: 20}, {}, {1: 1000, 2: 2000, 3: 3000},
-         [
-             AssignmentPatchData(student_num=1000,
-                                 assignment_number=80,
-                                 grade=0),
-             AssignmentPatchData(student_num=2000,
-                                 assignment_number=80,
-                                 grade=10),
-             AssignmentPatchData(student_num=3000,
-                                 assignment_number=80,
-                                 grade=20)
-         ])))
+                          ({1: None, 2: None}, {1000: '', 2000: '10', 3000: 'MI'}, {1: 1000, 2: 2000, 3: 3000},
+                           [
+                               AssignmentPatchData(student_num=2000,
+                                                   assignment_number=80,
+                                                   grade=None)
+                           ]),
+                          ({1: 3, 2: 0, 3: 0}, {1000: '', 3000: '3', 2000: 'MI'}, {1: 1000, 2: 2000, 3: 3000},
+                           [
+                               AssignmentPatchData(student_num=1000,
+                                                   assignment_number=80,
+                                                   grade=3),
+                               AssignmentPatchData(student_num=3000,
+                                                   assignment_number=80,
+                                                   grade=0)
+                           ]),
+                          ({1: 3, 2: 10, 3: 20, 4: 30, 5: 50}, {1000: '', 2000: 'N/A', 3000: 'MI', 4000: '10', 5000: 50},
+                           {1: 1000, 2: 2000, 3: 3000, 4: 4000, 5: 5000},
+                           [
+                               AssignmentPatchData(student_num=1000,
+                                                   assignment_number=80,
+                                                   grade=3),
+                               AssignmentPatchData(student_num=2000,
+                                                   assignment_number=80,
+                                                   grade=10),
+                               AssignmentPatchData(student_num=3000,
+                                                   assignment_number=80,
+                                                   grade=20),
+                               AssignmentPatchData(student_num=4000,
+                                                   assignment_number=80,
+                                                   grade=30)
+                           ]),
+                          ({1: 0, 2: 10, 3: 20}, {}, {1: 1000, 2: 2000, 3: 3000},
+                           [
+                               AssignmentPatchData(student_num=1000,
+                                                   assignment_number=80,
+                                                   grade=0),
+                               AssignmentPatchData(student_num=2000,
+                                                   assignment_number=80,
+                                                   grade=10),
+                               AssignmentPatchData(student_num=3000,
+                                                   assignment_number=80,
+                                                   grade=20)
+                           ])))
 def test_generate_patch_data_for_assignment(google_classroom_submissions,
                                             aeries_submissions,
                                             student_ids_to_student_nums,

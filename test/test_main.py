@@ -4,6 +4,7 @@ from click import BadOptionUsage
 from click.testing import CliRunner
 from pytest import mark, raises
 
+from aeries_utils import AeriesData
 from main import run_aeries_importer, _split_periods
 
 
