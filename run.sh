@@ -46,6 +46,9 @@ fi
 
 pip install --editable .
 
+# Aeries Chrome session setup; default profile (created with webdriver) should point to existing profile
+ln -s $HOME/Library/Application\ Support/Google/Chrome/Profile\ 1 $HOME/Library/Application\ Support/Google/Chrome/Profile\ 1/Default
+
 # Run the Click CLI application
 $VENV_DIR/bin/aeries-importer
 
