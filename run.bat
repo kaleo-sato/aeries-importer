@@ -8,7 +8,19 @@ set "SOURCE_DIR=%USERPROFILE%\aeries-importer"
 set "NEEDED_FILES=credentials.json"
 
 :: Function to ensure needed files are in the source directory
-call :ensure_files
+if not exist "%SOURCE_DIR%" (
+    echo Save aeries-importer in your home directory.
+    pause
+    exit /b 1
+)
+
+for %%F in (%NEEDED_FILES%) do (
+    if not exist "%SOURCE_DIR%\%%F" (
+        echo File %%F is missing in %SOURCE_DIR%. Please ensure it is present.
+        pause
+        exit /b 1
+    )
+)
 
 :: Change to source directory
 cd /d "%SOURCE_DIR%"
@@ -28,6 +40,7 @@ if exist "%REQUIREMENTS_FILE%" (
     pip install -r "%REQUIREMENTS_FILE%"
 ) else (
     echo Requirements file not found!
+    pause
     exit /b 1
 )
 
@@ -39,19 +52,5 @@ pip install --editable .
 :: Deactivate the virtual environment
 deactivate
 
-goto :EOF
-
-:ensure_files
-if not exist "%SOURCE_DIR%" (
-    echo Save aeries-importer in your home directory.
-    exit /b 1
-)
-
-for %%F in (%NEEDED_FILES%) do (
-    if not exist "%SOURCE_DIR%\%%F" (
-        echo File %%F is missing in %SOURCE_DIR%. Please ensure it is present.
-        exit /b 1
-    )
-)
-
+pause
 goto :EOF
