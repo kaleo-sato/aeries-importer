@@ -1,4 +1,6 @@
+import concurrent
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Optional, List
@@ -86,6 +88,19 @@ class AeriesData:
         self.periods_to_assignment_information = {}
         self.periods_to_assignment_submissions = {}
         self.periods_to_gradebook_information = {}
+        self.periods_to_student_ids_to_overall_grades = {}
+
+    def probe(self) -> None:
+        """
+        Probe for the Aeries cookie validity by checking if the gradebook page can be accessed.
+        """
+        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+                   'Cookie': f's={self.s_cookie}'}
+        response = requests.get(GRADEBOOK_URL, headers=headers)
+        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+        self._get_periods_to_gradebook_and_term(beautiful_soup=beautiful_soup)
+
+        beautiful_soup.find(id=GRADEBOOK_HTML_ID)
 
     def extract_gradebook_ids_from_html(self) -> None:
         """
@@ -492,7 +507,21 @@ class AeriesData:
                       headers=headers,
                       json=data)
 
-    def extract_overall_grades_from_html(self, period: int) -> dict[int, float]:
+    def fetch_aeries_overall_grades(self) -> None:
+        """
+        Extract the overall grades from the Aeries HTML for all periods. This function will create a thread for each
+        period so that the overall grades extraction is consistent no matter how many periods are being processed.
+        """
+        with ThreadPoolExecutor(max_workers=len(self.periods)) as executor:
+            future_to_period = {executor.submit(self._extract_overall_grades_from_html, period=period): period
+                                for period in self.periods}
+
+            for future in as_completed(future_to_period):
+                period = future_to_period[future]
+                student_ids_to_overall_grades = future.result()
+                self.periods_to_student_ids_to_overall_grades[period] = student_ids_to_overall_grades
+
+    def _extract_overall_grades_from_html(self, period: int) -> dict[int, float]:
         """
         Extract the overall grades from the Aeries HTML for the given period. This function not very efficient compared
         to extracting grades from the overall Gradebook page. It uses individual student score pages to get the

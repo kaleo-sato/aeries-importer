@@ -68,9 +68,9 @@ def run_aeries_importer(periods: str):
     """
     creds = authenticate()
     classroom_service = build(serviceName='classroom', version='v1', credentials=creds)
-    s_cookie = get_aeries_cookie()
 
     periods_list = _split_periods(periods=periods)
+    s_cookie = get_aeries_cookie()
 
     run_import(classroom_service=classroom_service,
                periods=periods_list,

@@ -32,6 +32,8 @@ class Validator:
         """
         Populate periods_to_overall_grade_discrepancies with discrepancies between Google Classroom and Aeries.
         """
+        self.aeries_data.fetch_aeries_overall_grades()
+
         for period in self.periods:
             categories_to_weights = {
                 category_name: aeries_category.weight
@@ -41,10 +43,9 @@ class Validator:
                 period=period,
                 categories_to_weights=categories_to_weights
             )
-            aeries_overall_grades = self.aeries_data.extract_overall_grades_from_html(period=period)
 
             for student_id, google_classroom_overall_grade in google_classroom_overall_grades.items():
-                aeries_overall_grade = aeries_overall_grades[student_id]
+                aeries_overall_grade = self.aeries_data.periods_to_student_ids_to_overall_grades[period][student_id]
 
                 if not math.isclose(google_classroom_overall_grade, aeries_overall_grade, abs_tol=0.01):
                     discrepancy = OverallGradeDiscrepancy(google_classroom_overall_grade=google_classroom_overall_grade,
