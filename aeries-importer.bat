@@ -48,6 +48,11 @@ pip install --editable .
 
 :: Run the Click CLI application
 %VENV_DIR%\Scripts\aeries-importer
+if %ERRORLEVEL% neq 0 (
+    echo An error occurred while running aeries-importer.
+    pause
+    goto :EOF
+)
 
 :: Deactivate the virtual environment
 deactivate
