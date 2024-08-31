@@ -54,8 +54,5 @@ if %ERRORLEVEL% neq 0 (
     goto :EOF
 )
 
-:: Deactivate the virtual environment
-deactivate
-
 pause
 goto :EOF
