@@ -190,6 +190,10 @@ def test_join_google_classroom_and_aeries_data():
             GoogleClassroomAssignment(submissions={1: 3, 2: 4, 3: 1},
                                       assignment_name='hw3',
                                       point_total=5,
+                                      category='Practice'),
+            GoogleClassroomAssignment(submissions={},  # Do not process
+                                      assignment_name='hw4',
+                                      point_total=5,
                                       category='Practice')]
     }
 
