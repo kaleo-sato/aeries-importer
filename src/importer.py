@@ -63,8 +63,9 @@ def _join_google_classroom_and_aeries_data(
                                      aeries_data.periods_to_assignment_information[period].values())) + 1
 
         for google_classroom_assignment in google_classroom_assignments:
-            # Do not process this assignment if there are no submissions
-            if not google_classroom_assignment.submissions:
+            # Do not process this assignment if there are no submissions or if the assignment is not graded
+            if (not google_classroom_assignment.submissions or
+                    not any(map(lambda x: x is not None, google_classroom_assignment.submissions.values()))):
                 continue
 
             aeries_assignment, next_assignment_id = _get_or_create_aeries_assignment(

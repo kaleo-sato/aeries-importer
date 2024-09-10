@@ -194,6 +194,10 @@ def test_join_google_classroom_and_aeries_data():
             GoogleClassroomAssignment(submissions={},  # Do not process
                                       assignment_name='hw4',
                                       point_total=5,
+                                      category='Practice'),
+            GoogleClassroomAssignment(submissions={1: None, 2: None},  # Do not process
+                                      assignment_name='hw2',
+                                      point_total=5,
                                       category='Practice')]
     }
 
