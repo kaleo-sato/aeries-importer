@@ -1,11 +1,10 @@
-from concurrent.futures import Future
-from unittest.mock import Mock, patch, call, MagicMock
+from unittest.mock import Mock, patch, call
 
 from arrow import Arrow
 from bs4 import Tag, NavigableString
 from pytest import raises
 
-from aeries_utils import (GRADEBOOK_AND_TERM_TAG_NAME, GRADEBOOK_URL, STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME,
+from aeries_utils import (BROWSER_NAME, GRADEBOOK_AND_TERM_TAG_NAME, GRADEBOOK_URL, STUDENT_NUMBER_TAG_NAME, STUDENT_ID_TAG_NAME,
                           AeriesAssignmentData, CREATE_ASSIGNMENT_URL, AssignmentPatchData, AeriesCategory,
                           AeriesClassroomData, AeriesData)
 from constants import MILPITAS_SCHOOL_CODE
@@ -28,7 +27,7 @@ def test_extract_gradebook_ids_from_html():
                 mock_requests_get.assert_called_once_with(GRADEBOOK_URL, headers={
                     'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                     'Cookie': 's=aeries-cookie'
-                })
+                }, impersonate=BROWSER_NAME)
                 mock_beautiful_soup_create.assert_called_once_with('my html', 'html.parser')
                 mock_get_periods_to_gradebook_and_term.assert_called_once_with(beautiful_soup=mock_beautiful_soup)
 
@@ -120,8 +119,8 @@ def test_extract_student_ids_to_student_nums_from_html():
                     2: {3: 30, 4: 40}
                 }
                 mock_requests_get.assert_has_calls([
-                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
-                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
+                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers, impersonate=BROWSER_NAME),
+                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers, impersonate=BROWSER_NAME)
                 ])
                 mock_beautiful_soup_create.assert_has_calls([
                     call('my html', 'html.parser'),
@@ -177,8 +176,8 @@ def test_extract_assignment_information_from_html():
                        'c': AeriesAssignmentData(id=3, point_total=30, category='C')}
                }
                 mock_requests_get.assert_has_calls([
-                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
-                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
+                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers, impersonate=BROWSER_NAME),
+                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers, impersonate=BROWSER_NAME)
                 ])
                 mock_beautiful_soup_create.assert_has_calls([
                     call('my html', 'html.parser'),
@@ -324,8 +323,8 @@ def test_extract_assignment_submissions_from_html():
                         92: {300: '', 301: '', 302: '50.5', 303: '100'}}
                 }
                 mock_requests_get.assert_has_calls([
-                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers),
-                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers)
+                    call('https://aeries.musd.org/gradebook/123/S/scoresByClass', headers=expected_headers, impersonate=BROWSER_NAME),
+                    call('https://aeries.musd.org/gradebook/234/S/scoresByClass', headers=expected_headers, impersonate=BROWSER_NAME)
                 ])
                 mock_beautiful_soup_create.assert_has_calls([
                     call('my html', 'html.parser'),
@@ -422,8 +421,8 @@ def test_extract_gradebook_information_from_html():
                     assert aeries_data.request_verification_token == 'request'
 
                     mock_requests_get.assert_has_calls([
-                        call('https://aeries.musd.org/gradebook/123/F/manage', headers=expected_headers),
-                        call('https://aeries.musd.org/gradebook/234/S/manage', headers=expected_headers)
+                        call('https://aeries.musd.org/gradebook/123/F/manage', headers=expected_headers, impersonate=BROWSER_NAME),
+                        call('https://aeries.musd.org/gradebook/234/S/manage', headers=expected_headers, impersonate=BROWSER_NAME)
                     ])
                     mock_beautiful_soup_create.assert_has_calls([
                         call('my html', 'html.parser'),
@@ -526,7 +525,8 @@ def test_create_aeries_assignment():
                     CREATE_ASSIGNMENT_URL,
                     params={'gn': '12345', 'an': 24},
                     data=expected_data,
-                    headers=expected_headers
+                    headers=expected_headers,
+                    impersonate=BROWSER_NAME
                 )
 
 
@@ -578,7 +578,8 @@ def test_create_aeries_assignment_with_due_date_past_term_end_date():
                     CREATE_ASSIGNMENT_URL,
                     params={'gn': '12345', 'an': 24},
                     data=expected_data,
-                    headers=expected_headers
+                    headers=expected_headers,
+                    impersonate=BROWSER_NAME
                 )
 
 
@@ -632,7 +633,8 @@ def test_create_aeries_assignment_invalid_status_code():
                     CREATE_ASSIGNMENT_URL,
                     params={'gn': '12345', 'an': 24},
                     data=expected_data,
-                    headers=expected_headers
+                    headers=expected_headers,
+                    impersonate=BROWSER_NAME
                 )
 
 
@@ -684,7 +686,8 @@ def test_patch_aeries_assignment():
                     CREATE_ASSIGNMENT_URL,
                     params={'gn': '12345', 'an': 24},
                     data=expected_data,
-                    headers=expected_headers
+                    headers=expected_headers,
+                    impersonate=BROWSER_NAME
                 )
 
 
@@ -738,7 +741,8 @@ def test_patch_aeries_assignment_invalid_status_code():
                     CREATE_ASSIGNMENT_URL,
                     params={'gn': '12345', 'an': 24},
                     data=expected_data,
-                    headers=expected_headers
+                    headers=expected_headers,
+                    impersonate=BROWSER_NAME
                 )
 
 
@@ -790,7 +794,8 @@ def test_patch_aeries_assignment_with_due_date_past_term_end_date():
                     CREATE_ASSIGNMENT_URL,
                     params={'gn': '12345', 'an': 24},
                     data=expected_data,
-                    headers=expected_headers
+                    headers=expected_headers,
+                    impersonate=BROWSER_NAME
                 )
 
 
@@ -821,7 +826,8 @@ def test_get_form_request_verification_token():
 
             mock_request.assert_called_once_with(CREATE_ASSIGNMENT_URL,
                                                  params=expected_params,
-                                                 headers=expected_headers)
+                                                 headers=expected_headers,
+                                                 impersonate=BROWSER_NAME)
             mock_beautiful_soup_create.assert_called_once_with(
                 'my html',
                 'html.parser'
@@ -894,7 +900,8 @@ def test_send_patch_request():
             'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
             params={'fieldName': 'Mark'},
             headers=headers,
-            json=data
+            json=data,
+            impersonate=BROWSER_NAME
         )
 
 
@@ -924,7 +931,8 @@ def test_send_patch_request_empty_grade():
             'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
             params={'fieldName': 'Mark'},
             headers=headers,
-            json=data
+            json=data,
+            impersonate=BROWSER_NAME
         )
 
 
@@ -954,7 +962,8 @@ def test_send_patch_request_missing_grade():
             'https://aeries.musd.org/api/schools/341/gradebooks/12345/S/students/2212/341/scores/55',
             params={'fieldName': 'Mark'},
             headers=headers,
-            json=data
+            json=data,
+            impersonate=BROWSER_NAME
         )
 
 
@@ -986,8 +995,8 @@ def test_extract_overall_grades_from_html():
             }
 
             mock_requests_get.assert_has_calls([
-                call('https://aeries.musd.org/gradebook/123/S/ScoresByStudent/99/341', headers=expected_headers),
-                call('https://aeries.musd.org/gradebook/123/S/ScoresByStudent/88/341', headers=expected_headers)
+                call('https://aeries.musd.org/gradebook/123/S/ScoresByStudent/99/341', headers=expected_headers, impersonate=BROWSER_NAME),
+                call('https://aeries.musd.org/gradebook/123/S/ScoresByStudent/88/341', headers=expected_headers, impersonate=BROWSER_NAME)
             ])
             mock_beautiful_soup_create.assert_has_calls([
                 call('my html', 'html.parser'),
