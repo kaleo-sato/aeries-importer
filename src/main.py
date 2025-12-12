@@ -8,7 +8,6 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from importer import run_import
-from web_driver import get_aeries_cookie
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/classroom.coursework.students',
@@ -72,6 +71,7 @@ def run_aeries_importer(periods: str, s_cookie: str):
 
     periods_list = _split_periods(periods=periods)
     # This is buggy
+    # s_cookie = get_aeries_cookie()
     # s_cookie = get_aeries_cookie()
 
     run_import(classroom_service=classroom_service,
