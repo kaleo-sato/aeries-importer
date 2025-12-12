@@ -8,7 +8,7 @@ from typing import Optional, List
 import click
 from arrow import Arrow
 from bs4 import BeautifulSoup
-import requests
+from curl_cffi import requests
 
 from constants import MILPITAS_SCHOOL_CODE
 
@@ -18,6 +18,7 @@ GRADEBOOK_LIST_ATTRIBUTE = 'data-validgradebookandterm'
 GRADEBOOK_NAME_PATTERN = r'^([1-6]) - '
 GRADEBOOK_AND_TERM_TAG_NAME = 'data-validgradebookandterm'
 LIST_VIEW_ID = 'GbkDash-list-view'
+BROWSER_NAME = 'chrome124'
 
 SCORES_BY_CLASS_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/scoresByClass'
 SCORES_BY_CLASS_ASSIGNMENT_INFO_TABLE_CLASS_NAME = 'assignment-header'
@@ -96,7 +97,7 @@ class AeriesData:
         """
         headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                    'Cookie': f's={self.s_cookie}'}
-        response = requests.get(GRADEBOOK_URL, headers=headers)
+        response = requests.get(GRADEBOOK_URL, headers=headers, impersonate=BROWSER_NAME)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
         self._get_periods_to_gradebook_and_term(beautiful_soup=beautiful_soup)
 
@@ -109,7 +110,7 @@ class AeriesData:
         click.echo('Retrieving Aeries Gradebook ids...')
         headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
                    'Cookie': f's={self.s_cookie}'}
-        response = requests.get(GRADEBOOK_URL, headers=headers)
+        response = requests.get(GRADEBOOK_URL, headers=headers, impersonate=BROWSER_NAME)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
         self.periods_to_gradebook_ids = self._get_periods_to_gradebook_and_term(beautiful_soup=beautiful_soup)
@@ -157,7 +158,7 @@ class AeriesData:
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
+            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             self.periods_to_student_ids_to_student_nums[period] = AeriesData._get_student_ids_to_student_nums(
@@ -188,7 +189,7 @@ class AeriesData:
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
+            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             self.periods_to_assignment_information[period] = AeriesData._get_assignment_information(
@@ -249,7 +250,7 @@ class AeriesData:
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers)
+            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             self.periods_to_assignment_submissions[period] = AeriesData._get_assignment_submissions_information(
@@ -292,7 +293,8 @@ class AeriesData:
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
             response = requests.get(GRADEBOOK_INFORMATION_URL.format(gradebook_id=gradebook_id),
-                                    headers=headers)
+                                    headers=headers,
+                                    impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
             categories = AeriesData._get_aeries_category_information(beautiful_soup=beautiful_soup)
             end_term_dates = AeriesData._get_aeries_end_term_information(beautiful_soup=beautiful_soup)
@@ -388,7 +390,8 @@ class AeriesData:
         response = requests.post(CREATE_ASSIGNMENT_URL,
                                  params={'gn': gradebook_number, 'an': assignment_id},
                                  data=data,
-                                 headers=headers)
+                                 headers=headers,
+                                 impersonate=BROWSER_NAME)
 
         if response.status_code != 200:
             raise ValueError(f'Assignment creation has unexpected status code: {response.status_code}')
@@ -442,7 +445,8 @@ class AeriesData:
         response = requests.put(CREATE_ASSIGNMENT_URL,
                                 params={'gn': gradebook_number, 'an': assignment_id},
                                 data=data,
-                                headers=headers)
+                                headers=headers,
+                                impersonate=BROWSER_NAME)
 
         if response.status_code != 200:
             raise ValueError(f'Assignment update has unexpected status code: {response.status_code}')
@@ -456,7 +460,7 @@ class AeriesData:
                   'an': 0}
         headers = {'Cookie': f'__RequestVerificationToken={self.request_verification_token}; s={self.s_cookie}'}
 
-        response = requests.get(CREATE_ASSIGNMENT_URL, params=params, headers=headers)
+        response = requests.get(CREATE_ASSIGNMENT_URL, params=params, headers=headers, impersonate=BROWSER_NAME)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
         return beautiful_soup.find('form').find('input', attrs={'name': '__RequestVerificationToken'}).get('value')
@@ -505,7 +509,8 @@ class AeriesData:
                                                          assignment_number=assignment_number),
                       params={'fieldName': 'Mark'},
                       headers=headers,
-                      json=data)
+                      json=data,
+                      impersonate=BROWSER_NAME)
 
     def fetch_aeries_overall_grades(self) -> None:
         """
@@ -541,7 +546,8 @@ class AeriesData:
                                     .format(gradebook_id=gradebook_id,
                                             student_num=student_num,
                                             MILPITAS_SCHOOL_CODE=MILPITAS_SCHOOL_CODE),
-                                    headers=headers)
+                                    headers=headers,
+                                    impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             score = beautiful_soup.find('div', id='overallPercentDisplay').string
