@@ -12,19 +12,19 @@ from curl_cffi import requests
 
 from constants import MILPITAS_SCHOOL_CODE
 
-GRADEBOOK_URL = 'https://aeries.musd.org/gradebook'
+GRADEBOOK_URL = 'https://milpitasusd.aeries.net/teacher/gradebook'
 GRADEBOOK_HTML_ID = 'ValidGradebookList'
 GRADEBOOK_LIST_ATTRIBUTE = 'data-validgradebookandterm'
 GRADEBOOK_NAME_PATTERN = r'^([1-6]) - '
 GRADEBOOK_AND_TERM_TAG_NAME = 'data-validgradebookandterm'
 LIST_VIEW_ID = 'GbkDash-list-view'
-BROWSER_NAME = 'chrome124'
+BROWSER_NAME = 'chrome136'
 
-SCORES_BY_CLASS_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/scoresByClass'
+SCORES_BY_CLASS_URL = 'https://milpitasusd.aeries.net/teacher/gradebook/{gradebook_id}/scoresByClass'
 SCORES_BY_CLASS_ASSIGNMENT_INFO_TABLE_CLASS_NAME = 'assignment-header'
 SCORES_BY_CLASS_ASSIGNMENT_NAME_CLASS_NAME = 'scores-by-class-override'
 SCORES_BY_CLASS_STUDENT_INFO_TABLE_CLASS_NAME = 'students'
-SCORES_BY_STUDENT_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/ScoresByStudent/{student_num}/{MILPITAS_SCHOOL_CODE}'
+SCORES_BY_STUDENT_URL = 'https://milpitasusd.aeries.net/teacher/gradebook/{gradebook_id}/ScoresByStudent/{student_num}/{MILPITAS_SCHOOL_CODE}'
 STUDENT_ID_TAG_NAME = 'data-stuid'
 STUDENT_NUMBER_TAG_NAME = 'data-sn'
 SCORE_TAG_NAME = 'data-original-value'
@@ -39,15 +39,15 @@ ASSIGNMENT_SCORES_ROW = 'scores row'
 ASSIGNMENT_TOTAL_SCORE_TITLE = '# Correct Possible'
 ASSIGNMENT_SUBMISSION_CLASS_ROW_TAG_NAME = 'cell text-center hidden-text cell-by-class'
 
-GRADEBOOK_INFORMATION_URL = 'https://aeries.musd.org/gradebook/{gradebook_id}/manage'
+GRADEBOOK_INFORMATION_URL = 'https://milpitasusd.aeries.net/teacher/gradebook/{gradebook_id}/manage'
 WEIGHT_CATEGORY_TABLE_ID = 'manageManageCategoriesTable'
 END_TERMS_TABLE_ID = 'manageTerms'
 GRADEBOOK_TERM_ID = 'gradebook-term-desc'
 END_TERMS_END_DATE_ID = 'term-end-date'
 
-CREATE_ASSIGNMENT_URL = 'https://aeries.musd.org/gradebook/manage/assignment'
+CREATE_ASSIGNMENT_URL = 'https://milpitasusd.aeries.net/teacher/gradebook/manage/assignment'
 
-UPDATE_ASSIGNMENT_GRADE_URL = 'https://aeries.musd.org/api/schools/{school_code}/gradebooks/{gradebook_id}/students/'\
+UPDATE_ASSIGNMENT_GRADE_URL = 'https://milpitasusd.aeries.net/teacher/api/schools/{school_code}/gradebooks/{gradebook_id}/students/'\
                               '{student_number}/{school_code}/scores/{assignment_number}'
 
 
@@ -90,14 +90,16 @@ class AeriesData:
         self.periods_to_assignment_submissions = {}
         self.periods_to_gradebook_information = {}
         self.periods_to_student_ids_to_overall_grades = {}
+        self.session = requests.Session()
+        self.session.cookies.set("s", self.s_cookie, domain="milpitasusd.aeries.net")  # Must happen before warmup call to prevent gradebook stickiness in subsequent calls
 
     def probe(self) -> None:
         """
         Probe for the Aeries cookie validity by checking if the gradebook page can be accessed.
         """
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                    'Cookie': f's={self.s_cookie}'}
-        response = requests.get(GRADEBOOK_URL, headers=headers, impersonate=BROWSER_NAME)
+        response = requests.get(GRADEBOOK_URL, headers=headers)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
         self._get_periods_to_gradebook_and_term(beautiful_soup=beautiful_soup)
 
@@ -108,11 +110,22 @@ class AeriesData:
         Parse the HTML of the Aeries gradebook page to get the gradebook ids for the periods.
         """
         click.echo('Retrieving Aeries Gradebook ids...')
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-                   'Cookie': f's={self.s_cookie}'}
-        response = requests.get(GRADEBOOK_URL, headers=headers, impersonate=BROWSER_NAME)
-        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Referer': 'https://milpitasusd.aeries.net/teacher/Default.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Priority': 'u=0,i',
+            'Cookie': f's={self.s_cookie}'
+        }
 
+        response = self.session.get(GRADEBOOK_URL, headers=headers, impersonate=BROWSER_NAME)
+        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
         self.periods_to_gradebook_ids = self._get_periods_to_gradebook_and_term(beautiful_soup=beautiful_soup)
 
     def _get_periods_to_gradebook_and_term(self, beautiful_soup: BeautifulSoup) -> dict[int, str]:
@@ -153,12 +166,23 @@ class AeriesData:
         that are used in Google Classroom.
         """
         click.echo('Fetching Student Numbers (not IDs!) from Aeries...')
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-                   'Cookie': f's={self.s_cookie}'}
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Referer': 'https://milpitasusd.aeries.net/teacher/Default.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Priority': 'u=0,i',
+            'Cookie': f's={self.s_cookie}'
+        }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
+            response = self.session.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             self.periods_to_student_ids_to_student_nums[period] = AeriesData._get_student_ids_to_student_nums(
@@ -184,12 +208,23 @@ class AeriesData:
         and category.
         """
         click.echo('Fetching Assignment information from Aeries...')
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-                   'Cookie': f's={self.s_cookie}'}
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Referer': 'https://milpitasusd.aeries.net/teacher/Default.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Priority': 'u=0,i',
+            'Cookie': f's={self.s_cookie}'
+        }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
+            response = self.session.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             self.periods_to_assignment_information[period] = AeriesData._get_assignment_information(
@@ -245,12 +280,23 @@ class AeriesData:
         Returns a mapping of period -> assignment_id -> student_num -> score
         """
         click.echo('Fetching Assignment submissions from Aeries...')
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-                   'Cookie': f's={self.s_cookie}'}
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Referer': 'https://milpitasusd.aeries.net/teacher/Default.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Priority': 'u=0,i',
+            'Cookie': f's={self.s_cookie}'
+        }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
+            response = self.session.get(SCORES_BY_CLASS_URL.format(gradebook_id=gradebook_id), headers=headers, impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             self.periods_to_assignment_submissions[period] = AeriesData._get_assignment_submissions_information(
@@ -287,14 +333,25 @@ class AeriesData:
         requests to Aeries.
         """
         click.echo('Fetching Gradebook information (weights and term end dates) for gradebooks...')
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
-                   'Cookie': f's={self.s_cookie}'}
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Referer': 'https://milpitasusd.aeries.net/teacher/Default.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Priority': 'u=0,i',
+            'Cookie': f's={self.s_cookie}'
+        }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
             click.echo(f'\tProcessing Period {period}...')
-            response = requests.get(GRADEBOOK_INFORMATION_URL.format(gradebook_id=gradebook_id),
-                                    headers=headers,
-                                    impersonate=BROWSER_NAME)
+            response = self.session.get(GRADEBOOK_INFORMATION_URL.format(gradebook_id=gradebook_id),
+                                        headers=headers,
+                                        impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
             categories = AeriesData._get_aeries_category_information(beautiful_soup=beautiful_soup)
             end_term_dates = AeriesData._get_aeries_end_term_information(beautiful_soup=beautiful_soup)
@@ -303,8 +360,7 @@ class AeriesData:
                 categories=categories,
                 end_term_dates=end_term_dates
             )
-
-            self.request_verification_token = response.cookies.get('__RequestVerificationToken')
+            self.request_verification_token = response.cookies.get('__RequestVerificationToken_L3RlYWNoZXI1')
 
     @staticmethod
     def _get_aeries_category_information(beautiful_soup: BeautifulSoup) -> dict[str, AeriesCategory]:
@@ -364,12 +420,26 @@ class AeriesData:
         """
         form_request_verification_token = self._get_form_request_verification_token(gradebook_number=gradebook_number)
 
-        time = Arrow.now()
-        if time >= end_term_date:
-            time = end_term_date.shift(days=-1)
+        timestamp = Arrow.now()
+        if timestamp >= end_term_date:
+            timestamp = end_term_date.shift(days=-1)
 
-        headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                   'Cookie': f'__RequestVerificationToken={self.request_verification_token}; s={self.s_cookie}'}
+        headers = {
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Origin': 'https://milpitasusd.aeries.net',
+            'sec-ch-ua': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': 'macOS',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'Priority': 'u=1,i',
+            'x-requested-with': 'XMLHttpRequest',
+            'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}; s={self.s_cookie}'
+        }
         data = {
             '__RequestVerificationToken': form_request_verification_token,
             'Assignment.GradebookNumber': gradebook_number,
@@ -379,20 +449,19 @@ class AeriesData:
             'Assignment.Description': assignment_name,
             'Assignment.AssignmentType': 'S' if category.name == 'Performance' else 'F',
             'Assignment.Category': category.id,
-            'Assignment.DateAssigned': f'{time.month:02d}/{time.day:02d}/{time.year}',
-            'Assignment.DateDue': f'{time.month:02d}/{time.day:02d}/{time.year}',
+            'Assignment.DateAssigned': f'{timestamp.month:02d}/{timestamp.day:02d}/{timestamp.year}',
+            'Assignment.DateDue': f'{timestamp.month:02d}/{timestamp.day:02d}/{timestamp.year}',
             'Assignment.MaxNumberCorrect': point_total,
             'Assignment.MaxScore': point_total,
             'Assignment.VisibleToParents': True,
             'Assignment.ScoresVisibleToParents': True
         }
 
-        response = requests.post(CREATE_ASSIGNMENT_URL,
-                                 params={'gn': gradebook_number, 'an': assignment_id},
-                                 data=data,
-                                 headers=headers,
-                                 impersonate=BROWSER_NAME)
-
+        response = self.session.post(CREATE_ASSIGNMENT_URL,
+                                     params={'gn': gradebook_number, 'an': assignment_id},
+                                     data=data,
+                                     headers=headers,
+                                     impersonate=BROWSER_NAME)
         if response.status_code != 200:
             raise ValueError(f'Assignment creation has unexpected status code: {response.status_code}')
 
@@ -419,12 +488,24 @@ class AeriesData:
         """
         form_request_verification_token = self._get_form_request_verification_token(gradebook_number=gradebook_number)
 
-        time = Arrow.now()
-        if time >= end_term_date:
-            time = end_term_date.shift(days=-1)
+        timestamp = Arrow.now()
+        if timestamp >= end_term_date:
+            timestamp = end_term_date.shift(days=-1)
 
-        headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                   'Cookie': f'__RequestVerificationToken={self.request_verification_token}; s={self.s_cookie}'}
+        headers = {
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            'Referer': 'https://milpitasusd.aeries.net/teacher/Default.aspx',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Priority': 'u=0,i',
+            'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}; s={self.s_cookie}'
+        }
         data = {
             '__RequestVerificationToken': form_request_verification_token,
             'Assignment.GradebookNumber': gradebook_number,
@@ -434,19 +515,19 @@ class AeriesData:
             'Assignment.Description': assignment_name,
             'Assignment.AssignmentType': 'S' if category.name == 'Performance' else 'F',
             'Assignment.Category': category.id,
-            'Assignment.DateAssigned': f'{time.month:02d}/{time.day:02d}/{time.year}',
-            'Assignment.DateDue': f'{time.month:02d}/{time.day:02d}/{time.year}',
+            'Assignment.DateAssigned': f'{timestamp.month:02d}/{timestamp.day:02d}/{timestamp.year}',
+            'Assignment.DateDue': f'{timestamp.month:02d}/{timestamp.day:02d}/{timestamp.year}',
             'Assignment.MaxNumberCorrect': point_total,
             'Assignment.MaxScore': point_total,
             'Assignment.VisibleToParents': True,
             'Assignment.ScoresVisibleToParents': True
         }
 
-        response = requests.put(CREATE_ASSIGNMENT_URL,
-                                params={'gn': gradebook_number, 'an': assignment_id},
-                                data=data,
-                                headers=headers,
-                                impersonate=BROWSER_NAME)
+        response = self.session.put(CREATE_ASSIGNMENT_URL,
+                                    params={'gn': gradebook_number, 'an': assignment_id},
+                                    data=data,
+                                    headers=headers,
+                                    impersonate=BROWSER_NAME)
 
         if response.status_code != 200:
             raise ValueError(f'Assignment update has unexpected status code: {response.status_code}')
@@ -458,9 +539,9 @@ class AeriesData:
     def _get_form_request_verification_token(self, gradebook_number: str) -> str:
         params = {'gn': gradebook_number,
                   'an': 0}
-        headers = {'Cookie': f'__RequestVerificationToken={self.request_verification_token}; s={self.s_cookie}'}
+        headers = {'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}; s={self.s_cookie}'}
 
-        response = requests.get(CREATE_ASSIGNMENT_URL, params=params, headers=headers, impersonate=BROWSER_NAME)
+        response = self.session.get(CREATE_ASSIGNMENT_URL, params=params, headers=headers, impersonate=BROWSER_NAME)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
         return beautiful_soup.find('form').find('input', attrs={'name': '__RequestVerificationToken'}).get('value')
@@ -503,14 +584,16 @@ class AeriesData:
             "Mark": grade
         }
 
-        requests.post(UPDATE_ASSIGNMENT_GRADE_URL.format(school_code=MILPITAS_SCHOOL_CODE,
-                                                         gradebook_id=gradebook_id,
-                                                         student_number=student_number,
-                                                         assignment_number=assignment_number),
-                      params={'fieldName': 'Mark'},
-                      headers=headers,
-                      json=data,
-                      impersonate=BROWSER_NAME)
+        self.session.post(
+            UPDATE_ASSIGNMENT_GRADE_URL.format(school_code=MILPITAS_SCHOOL_CODE,
+                                               gradebook_id=gradebook_id,
+                                               student_number=student_number,
+                                               assignment_number=assignment_number),
+            params={'fieldName': 'Mark'},
+            headers=headers,
+            json=data,
+            impersonate=BROWSER_NAME
+        )
 
     def fetch_aeries_overall_grades(self) -> None:
         """
@@ -535,19 +618,19 @@ class AeriesData:
         :return: Mapping of student id to overall grade.
         """
         overall_grades = {}
-        headers = {'Accept': 'application/json, text/html, application/xhtml+xml, */*',
+        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                    'Cookie': f's={self.s_cookie}'}
 
         gradebook_id = self.periods_to_gradebook_ids[period]
         student_ids_to_student_nums = self.periods_to_student_ids_to_student_nums[period]
 
         for student_id, student_num in student_ids_to_student_nums.items():
-            response = requests.get(SCORES_BY_STUDENT_URL
-                                    .format(gradebook_id=gradebook_id,
-                                            student_num=student_num,
-                                            MILPITAS_SCHOOL_CODE=MILPITAS_SCHOOL_CODE),
-                                    headers=headers,
-                                    impersonate=BROWSER_NAME)
+            response = self.session.get(SCORES_BY_STUDENT_URL
+                                        .format(gradebook_id=gradebook_id,
+                                                student_num=student_num,
+                                                MILPITAS_SCHOOL_CODE=MILPITAS_SCHOOL_CODE),
+                                        headers=headers,
+                                        impersonate=BROWSER_NAME)
             beautiful_soup = BeautifulSoup(response.text, 'html.parser')
 
             score = beautiful_soup.find('div', id='overallPercentDisplay').string
