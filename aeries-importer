@@ -6,6 +6,8 @@ REQUIREMENTS_FILE="requirements.txt" # Path to the requirements file
 SOURCE_DIR="$HOME/aeries-importer/"         # Directory where source code resides
 NEEDED_FILES=("credentials.json") # List of files that need to be present
 
+git pull
+
 # Function to ensure needed files are in the source directory
 ensure_files() {
     if [ ! -d "$SOURCE_DIR" ]; then

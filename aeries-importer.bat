@@ -7,6 +7,8 @@ set "REQUIREMENTS_FILE=requirements.txt"
 set "SOURCE_DIR=%USERPROFILE%\aeries-importer"
 set "NEEDED_FILES=credentials.json"
 
+git pull
+
 :: Function to ensure needed files are in the source directory
 if not exist "%SOURCE_DIR%" (
     echo Save aeries-importer in your home directory.
