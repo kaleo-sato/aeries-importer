@@ -10,7 +10,8 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'aeries-importer=main:run_aeries_importer'
+            'aeries-importer=main:run_aeries_importer',
+            'final-grade-calculator=main:run_final_grade_calculator',
         ],
     },
 )

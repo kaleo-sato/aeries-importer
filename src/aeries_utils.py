@@ -7,7 +7,7 @@ from typing import Optional, List
 
 import click
 from arrow import Arrow
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from curl_cffi import requests
 
 from constants import MILPITAS_SCHOOL_CODE
@@ -90,6 +90,7 @@ class AeriesData:
         self.periods_to_assignment_submissions = {}
         self.periods_to_gradebook_information = {}
         self.periods_to_student_ids_to_overall_grades = {}
+        self.periods_to_student_names_to_detailed_overall_grades = {}
         self.session = requests.Session()
         self.session.cookies.set("s", self.s_cookie, domain="milpitasusd.aeries.net")  # Must happen before warmup call to prevent gradebook stickiness in subsequent calls
 
@@ -637,4 +638,71 @@ class AeriesData:
             overall_grade = float(score[:-1])  # strip off % sign
             overall_grades[student_id] = overall_grade
 
+        return overall_grades
+
+    def fetch_aeries_detailed_overall_grades(self) -> None:
+        """
+        Extract the overall grades by category percentage from the Aeries HTML for all periods. This function will create a thread for each
+        period so that the overall grades extraction is consistent no matter how many periods are being processed.
+        """
+        click.echo('Gathering current Aeries grade snapshot...')
+        with ThreadPoolExecutor(max_workers=len(self.periods)) as executor:
+            future_to_period = {executor.submit(self._extract_detailed_overall_grades_from_html, period=period): period
+                                for period in self.periods}
+
+            for future in as_completed(future_to_period):
+                period = future_to_period[future]
+                student_names_to_overall_grades = future.result()
+                self.periods_to_student_names_to_detailed_overall_grades[period] = student_names_to_overall_grades
+
+    def _extract_detailed_overall_grades_from_html(self, period: int) -> dict[int, float]:
+        """
+        Extract the detailed overall grades from the Aeries HTML for the given period. This function not very efficient compared
+        to extracting grades from the overall Gradebook page. It uses individual student score pages to get the
+        0.01%-precise overall grade.
+
+        :return: Mapping of student name to overall grade.
+        """
+        overall_grades = {}
+        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                   'Cookie': f's={self.s_cookie}'}
+
+        gradebook_id = self.periods_to_gradebook_ids[period]
+        student_ids_to_student_nums = self.periods_to_student_ids_to_student_nums[period]
+
+        for student_num in student_ids_to_student_nums.values():
+            response = self.session.get(SCORES_BY_STUDENT_URL
+                                        .format(gradebook_id=gradebook_id,
+                                                student_num=student_num,
+                                                MILPITAS_SCHOOL_CODE=MILPITAS_SCHOOL_CODE),
+                                        headers=headers,
+                                        impersonate=BROWSER_NAME)
+            beautiful_soup = BeautifulSoup(response.text, 'html.parser')
+            name_div = beautiful_soup.find("td", class_='font-150 text-center').find("div")
+
+            name = next(
+                text.strip()
+                for text in name_div.contents
+                if isinstance(text, NavigableString) and text.strip()
+            )
+
+
+            student_category_summary = beautiful_soup.find('table', id='studentCategorySummary')
+            grade_breakdown = {}
+
+            for row in student_category_summary.select("tbody tr"):
+                cells = row.find_all("td")
+                category = cells[0].get_text(strip=True)
+
+                if category == 'Total':
+                    grade_breakdown[category] = {
+                        "category_percent": float(cells[4].get_text(strip=True)),
+                    }
+                else:
+                    grade_breakdown[category] = {
+                        "category_earned": float(cells[2].get_text(strip=True)),
+                        "category_total": float(cells[3].get_text(strip=True)),
+                    }
+
+            overall_grades[name] = grade_breakdown
         return overall_grades

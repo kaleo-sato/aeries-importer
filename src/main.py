@@ -8,6 +8,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from importer import run_import
+from final_grade_calculator import run_final_grade_calculations
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/classroom.coursework.students',
@@ -77,3 +78,19 @@ def run_aeries_importer(periods: str, s_cookie: str):
     run_import(classroom_service=classroom_service,
                periods=periods_list,
                s_cookie=s_cookie)
+
+
+@click.command()
+@click.option('--periods', metavar='<comma-separated-period-nums>', prompt=True)
+@click.option('--performance-points', type=float,prompt=True)
+@click.option('--s-cookie', prompt=True)
+def run_final_grade_calculator(periods: str, performance_points: float, s_cookie: str):
+    """
+    Runs the CLI for determining how many performance points of the final grade assignment a student needs to go up/down at the end of a semester.
+    Relies on updated grades in Aeries, so please use the aeries-importer as needed before running this script.
+    """
+    periods_list = _split_periods(periods=periods)
+
+    run_final_grade_calculations(performance_points=performance_points,
+                                 periods=periods_list,
+                                 s_cookie=s_cookie)
