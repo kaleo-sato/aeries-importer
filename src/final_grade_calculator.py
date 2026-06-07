@@ -13,14 +13,15 @@ class BoundaryResult:
     student_name: str
     current_overall: float
 
-    target: int
+    target: float
     required_score: float
     percent_of_points: float
 
 
 def run_final_grade_calculations(performance_points: float,
                                  periods: list[int],
-                                 s_cookie: str) -> None:
+                                 s_cookie: str,
+                                 use_boundary_rounding: bool) -> None:
     """
     Runs the logic for determining how many of the input performance_points are needed to go up/down a grade.
 
@@ -34,10 +35,10 @@ def run_final_grade_calculations(performance_points: float,
     aeries_data.extract_gradebook_information_from_html()
     aeries_data.fetch_aeries_detailed_overall_grades()
 
-    log_boundaries(periods, aeries_data, performance_points)
+    log_boundaries(periods, aeries_data, performance_points, use_boundary_rounding)
 
 
-def log_boundaries(periods, aeries_data: AeriesData, performance_points: int) -> None:
+def log_boundaries(periods, aeries_data: AeriesData, performance_points: int, use_boundary_rounding: bool) -> None:
     for period in periods:
         categories = aeries_data.periods_to_gradebook_information[period].categories
 
@@ -54,6 +55,7 @@ def log_boundaries(periods, aeries_data: AeriesData, performance_points: int) ->
                 overall_grade,
                 performance_points,
                 categories,
+                use_boundary_rounding=use_boundary_rounding
             )
 
             if not results:
@@ -96,6 +98,7 @@ def _calculate_boundary_for_one_student(
     overall_grade: dict[str, dict[str, float]],
     performance_points: int,
     categories: dict[str, AeriesCategory],
+    use_boundary_rounding: bool
 ) -> list[BoundaryResult]:
     current_overall = overall_grade["Total"]["category_percent"]
 
@@ -141,7 +144,7 @@ def _calculate_boundary_for_one_student(
 
     results: list[BoundaryResult] = []
 
-    def add_result(target: int):
+    def add_result(target: float):
         score_needed = required_score(target)
         percent = score_needed / performance_points * 100
 
@@ -157,7 +160,7 @@ def _calculate_boundary_for_one_student(
 
     # Determine boundaries
     if current_overall < 60:
-        upper_target = 60
+        upper_target = (59.5 if use_boundary_rounding else 60)
         lower_target = None
     elif current_overall < 90:
         lower_target = math.floor(current_overall / 10) * 10
@@ -165,8 +168,12 @@ def _calculate_boundary_for_one_student(
 
         if lower_target == upper_target:
             upper_target += 10
+
+        if use_boundary_rounding:
+            lower_target -= 0.5
+            upper_target -= 0.5
     else:
-        lower_target = 90
+        lower_target = (89.5 if use_boundary_rounding else 90)
         upper_target = None
 
     if lower_target is not None:

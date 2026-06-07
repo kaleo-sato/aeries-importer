@@ -84,7 +84,8 @@ def run_aeries_importer(periods: str, s_cookie: str):
 @click.option('--periods', metavar='<comma-separated-period-nums>', prompt=True)
 @click.option('--performance-points', type=float,prompt=True)
 @click.option('--s-cookie', prompt=True)
-def run_final_grade_calculator(periods: str, performance_points: float, s_cookie: str):
+@click.option('--use_boundary_rounding', type=bool, prompt=True)
+def run_final_grade_calculator(periods: str, performance_points: float, s_cookie: str, use_boundary_rounding: bool):
     """
     Runs the CLI for determining how many performance points of the final grade assignment a student needs to go up/down at the end of a semester.
     Relies on updated grades in Aeries, so please use the aeries-importer as needed before running this script.
@@ -93,4 +94,5 @@ def run_final_grade_calculator(periods: str, performance_points: float, s_cookie
 
     run_final_grade_calculations(performance_points=performance_points,
                                  periods=periods_list,
-                                 s_cookie=s_cookie)
+                                 s_cookie=s_cookie,
+                                 use_boundary_rounding=use_boundary_rounding)
