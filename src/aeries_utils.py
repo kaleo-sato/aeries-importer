@@ -80,9 +80,10 @@ class AeriesClassroomData:
 
 class AeriesData:
 
-    def __init__(self, periods: List[int], s_cookie: str):
+    def __init__(self, periods: List[int], s_cookie: str, awsalb_cookie: str):
         self.periods = periods
         self.s_cookie = s_cookie
+        self.awsalb_cookie = awsalb_cookie
         self.request_verification_token = ''
         self.periods_to_gradebook_ids = {}
         self.periods_to_student_ids_to_student_nums = {}
@@ -92,7 +93,8 @@ class AeriesData:
         self.periods_to_student_ids_to_overall_grades = {}
         self.periods_to_student_names_to_detailed_overall_grades = {}
         self.session = requests.Session()
-        self.session.cookies.set("s", self.s_cookie, domain="milpitasusd.aeries.net")  # Must happen before warmup call to prevent gradebook stickiness in subsequent calls
+        self.session.cookies.set("s", self.s_cookie, domain="milpitasusd.aeries.net", path="/")  # Must happen before warmup call to prevent gradebook stickiness in subsequent calls
+        self.session.cookies.set("AWSALB", self.awsalb_cookie, domain="milpitasusd.aeries.net", path="/")
 
     def probe(self) -> None:
         """

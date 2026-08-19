@@ -154,7 +154,8 @@ def test_run_import():
                 with patch.object(mock_aeries_data.return_value, 'update_grades_in_aeries') as mock_update_grades_in_aeries:
                     run_import(classroom_service=mock_classroom_service,
                                periods=periods,
-                               s_cookie='s_cookie')
+                               s_cookie='s_cookie',
+                               awsalb_cookie='awsalb_cookie')
                     mock_google_classroom_data.assert_called_once_with(
                         periods=periods,
                         classroom_service=mock_classroom_service
@@ -261,7 +262,7 @@ def test_join_google_classroom_and_aeries_data():
         )
     }
 
-    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
     aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
     aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
@@ -428,7 +429,7 @@ def test_get_or_create_aeries_assignment_creation():
         )
     }
 
-    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
     aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
     aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
@@ -489,7 +490,7 @@ def test_get_or_create_aeries_assignment_patch():
         )
     }
 
-    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
     aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
     aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
@@ -549,7 +550,7 @@ def test_get_or_create_aeries_assignment_existing():
         )
     }
 
-    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
     aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
     aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
@@ -641,7 +642,7 @@ def test_get_or_create_aeries_assignment_exception():
         )
     }
 
-    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1, 2], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_gradebook_ids = periods_to_gradebook_ids
     aeries_data.periods_to_student_ids_to_student_nums = periods_to_student_ids_to_student_nums
     aeries_data.periods_to_assignment_information = periods_to_assignment_name_to_aeries_assignments
@@ -751,7 +752,7 @@ def test_generate_patch_data_for_assignment(google_classroom_submissions,
                                             student_ids_to_student_nums,
                                             expected_assignment_patch_data):
     google_classroom_data = GoogleClassroomData(periods=[1], classroom_service=Mock())
-    aeries_data = AeriesData(periods=[1], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_student_ids_to_student_nums = {1: student_ids_to_student_nums}
     aeries_data.periods_to_assignment_submissions = {1: {80: aeries_submissions}}
 
@@ -782,7 +783,7 @@ def test_generate_patch_data_for_assignment_exception():
         1000: '', 2000: 'N/A', 3000: 'MI'
     }
 
-    aeries_data = AeriesData(periods=[1], s_cookie='s_cookie')
+    aeries_data = AeriesData(periods=[1], s_cookie='s_cookie', awsalb_cookie='awsalb_cookie')
     aeries_data.periods_to_student_ids_to_student_nums = {1: student_ids_to_student_nums}
     aeries_data.periods_to_assignment_submissions = {1: {80: aeries_submissions}}
 
