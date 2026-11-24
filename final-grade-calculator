@@ -46,6 +46,8 @@ else
     exit 1
 fi
 
+playwright install --with-deps chromium
+
 pip install --editable .
 
 # Aeries Chrome session setup; default profile (created with webdriver) should point to existing profile

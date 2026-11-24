@@ -20,19 +20,17 @@ class BoundaryResult:
 
 def run_final_grade_calculations(performance_points: float,
                                  periods: list[int],
-                                 s_cookie: str,
-                                 awsalbapp0_cookie: str,
+                                 cookies: dict[str, str],
                                  use_boundary_rounding: bool) -> None:
     """
     Runs the logic for determining how many of the input performance_points are needed to go up/down a grade.
 
     :param performance_points: How many performance points remain.
     :param periods: The list of period numbers to import grades.
-    :param s_cookie: The cookie to use for Aeries authentication.
-    :param awsalbapp0_cookie: The AWSALBAPP-0 cookie to use for Aeries authentication.
+    :param cookies: The cookies to use for Aeries authentication.
     :param use_boundary_rounding: Whether or not to account for grade rounding in the borderline caclulation.
     """
-    aeries_data = AeriesData(periods=periods, s_cookie=s_cookie, awsalbapp0_cookie=awsalbapp0_cookie)
+    aeries_data = AeriesData(periods=periods, cookies=cookies)
     aeries_data.extract_gradebook_ids_from_html()
     aeries_data.extract_student_ids_to_student_nums_from_html()
     aeries_data.extract_gradebook_information_from_html()

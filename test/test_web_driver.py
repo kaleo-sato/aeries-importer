@@ -1,57 +1,69 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 
-from web_driver import get_aeries_cookie
-
-
-def test_get_aeries_cookie():
-    mock_chrome_driver_manager = Mock()
-    mock_driver = Mock()
-
-    aeries_data = Mock()
-    with patch('web_driver.ChromeDriverManager',
-               return_value=mock_chrome_driver_manager) as mock_chrome_driver_manager_create:
-        with patch('web_driver.webdriver.Chrome', return_value=mock_driver) as mock_webdriver:
-            with patch('web_driver.AeriesData', return_value=aeries_data) as mock_aeries_data_create:
-                with patch('web_driver.sys') as mock_sys_exit:
-                    mock_webdriver.return_value.get_cookie.return_value = {'value': 'cookie'}
-                    assert get_aeries_cookie() == 'cookie'
-
-                    mock_chrome_driver_manager_create.assert_called_once()
-                    mock_chrome_driver_manager_create.return_value.install.assert_called_once()
-                    mock_webdriver.return_value.get.assert_called_once_with('https://aeries.musd.org')
-                    mock_webdriver.return_value.get_cookie.assert_called_once_with('s')
-
-                    mock_aeries_data_create.assert_called_once()
-                    mock_aeries_data_create.return_value.probe.assert_called_once()
-
-                    mock_sys_exit.assert_not_called()
-                    mock_webdriver.return_value.quit.assert_called_once()
+from web_driver import get_aeries_cookies
 
 
-def test_get_aeries_cookie_invalid_cookie():
-    mock_chrome_driver_manager = Mock()
-    mock_driver = Mock()
+def create_playwright_mocks():
+    mock_playwright = Mock()
+    mock_browser_type = Mock()
+    mock_context = Mock()
+    mock_page = Mock()
 
-    aeries_data = Mock()
-    with patch('web_driver.ChromeDriverManager',
-               return_value=mock_chrome_driver_manager) as mock_chrome_driver_manager_create:
-        with patch('web_driver.webdriver.Chrome', return_value=mock_driver) as mock_webdriver:
-            with patch('web_driver.AeriesData', return_value=aeries_data) as mock_aeries_data_create:
-                mock_aeries_data_create.return_value.probe.side_effect = AttributeError
-                with patch('web_driver.sys.exit') as mock_sys_exit:
-                    mock_webdriver.return_value.get_cookie.return_value = {'value': 'cookie'}
+    mock_playwright.chromium = mock_browser_type
+    mock_browser_type.launch_persistent_context.return_value = mock_context
+    mock_context.new_page.return_value = mock_page
 
-                    assert get_aeries_cookie() == 'cookie'
+    mock_context.cookies.return_value = [
+        {"name": "s", "value": "session-cookie"},
+        {"name": "AWSALB", "value": "alb-cookie"},
+        {"name": "AWSALBAPP-0", "value": "app-cookie"},
+    ]
 
-                    mock_chrome_driver_manager_create.assert_called_once()
-                    mock_chrome_driver_manager_create.return_value.install.assert_called_once()
-                    mock_webdriver.return_value.get.assert_called_once_with('https://aeries.musd.org')
-                    mock_webdriver.return_value.get_cookie.assert_called_once_with('s')
+    return mock_playwright, mock_context, mock_page
 
-                    mock_aeries_data_create.assert_called_once()
-                    mock_aeries_data_create.return_value.probe.assert_called_once()
 
-                    mock_sys_exit.assert_called_once_with(
-                        'Aeries cookie is invalid. Please check if you are logged in to Aeries in your Chrome session.',
-                    )
-                    mock_webdriver.return_value.quit.assert_called_once()
+@patch("builtins.input")
+@patch("web_driver.sync_playwright")
+def test_get_aeries_cookies(mock_sync_playwright, mock_input):
+    mock_playwright, mock_context, mock_page = create_playwright_mocks()
+    mock_sync_playwright.return_value.__enter__.return_value = mock_playwright
+
+    with patch("web_driver.AERIES_URL", "https://milpitasusd.aeries.net"):
+        mock_sync_playwright.return_value.__exit__.return_value = None
+
+        with patch("web_driver.sync_playwright", return_value=mock_sync_playwright.return_value):
+            cookies = get_aeries_cookies()
+
+    assert cookies == {
+        "s": "session-cookie",
+        "AWSALB": "alb-cookie",
+        "AWSALBAPP-0": "app-cookie",
+    }
+
+    mock_playwright.chromium.launch_persistent_context.assert_called_once_with(
+        user_data_dir="./aeries_browser_profile",
+        headless=False,
+    )
+    mock_context.new_page.assert_called_once()
+    mock_page.goto.assert_called_once_with("https://milpitasusd.aeries.net")
+    mock_input.assert_called_once()
+    mock_context.cookies.assert_called_once_with("https://milpitasusd.aeries.net")
+    mock_context.close.assert_called_once()
+
+
+@patch("builtins.input")
+@patch("web_driver.sync_playwright")
+def test_get_aeries_cookies_closes_context_on_error(mock_sync_playwright, mock_input):
+    mock_playwright, mock_context, mock_page = create_playwright_mocks()
+    mock_sync_playwright.return_value.__enter__.return_value = mock_playwright
+
+    mock_page.goto.side_effect = Exception("Navigation failed")
+
+    with patch("web_driver.AERIES_URL", "https://milpitasusd.aeries.net"):
+        try:
+            get_aeries_cookies()
+            assert False, "Expected an exception"
+        except Exception as exc:
+            assert str(exc) == "Navigation failed"
+
+    mock_context.close.assert_called_once()

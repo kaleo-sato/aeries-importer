@@ -9,6 +9,7 @@ from google.oauth2.credentials import Credentials
 
 from importer import run_import
 from final_grade_calculator import run_final_grade_calculations
+from web_driver import get_aeries_cookies
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/classroom.coursework.students',
@@ -62,9 +63,7 @@ def _split_periods(periods: str) -> list[int]:
 
 @click.command()
 @click.option('--periods', metavar='<comma-separated-period-nums>', prompt=True)
-@click.option('--s-cookie', prompt=True)
-@click.option('--awsalbapp0-cookie', prompt=True)
-def run_aeries_importer(periods: str, s_cookie: str, awsalbapp0_cookie: str):
+def run_aeries_importer(periods: str):
     """
     Runs the CLI for importing grades from Google Classroom to Aeries.
     """
@@ -72,31 +71,26 @@ def run_aeries_importer(periods: str, s_cookie: str, awsalbapp0_cookie: str):
     classroom_service = build(serviceName='classroom', version='v1', credentials=creds)
 
     periods_list = _split_periods(periods=periods)
-    # This is buggy
-    # s_cookie = get_aeries_cookie()
-    # s_cookie = get_aeries_cookie()
+    cookies = get_aeries_cookies()
 
     run_import(classroom_service=classroom_service,
                periods=periods_list,
-               s_cookie=s_cookie,
-               awsalbapp0_cookie=awsalbapp0_cookie)
+               cookies=cookies)
 
 
 @click.command()
 @click.option('--periods', metavar='<comma-separated-period-nums>', prompt=True)
 @click.option('--performance-points', type=float,prompt=True)
-@click.option('--s-cookie', prompt=True)
-@click.option('--awsalbapp0-cookie', prompt=True)
 @click.option('--use_boundary_rounding', type=bool, prompt=True)
-def run_final_grade_calculator(periods: str, performance_points: float, s_cookie: str, awsalbapp0_cookie: str, use_boundary_rounding: bool):
+def run_final_grade_calculator(periods: str, performance_points: float, use_boundary_rounding: bool):
     """
     Runs the CLI for determining how many performance points of the final grade assignment a student needs to go up/down at the end of a semester.
     Relies on updated grades in Aeries, so please use the aeries-importer as needed before running this script.
     """
     periods_list = _split_periods(periods=periods)
+    cookies = get_aeries_cookies()
 
     run_final_grade_calculations(performance_points=performance_points,
                                  periods=periods_list,
-                                 s_cookie=s_cookie,
-                                 awsalbapp0_cookie=awsalbapp0_cookie,
+                                 cookies=cookies,
                                  use_boundary_rounding=use_boundary_rounding)

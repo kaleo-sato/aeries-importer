@@ -6,7 +6,7 @@ google-api-python-client
 google-auth
 google-auth-httplib2
 google-auth-oauthlib
+playwright
 pytest
 requests
-selenium
 webdriver_manager

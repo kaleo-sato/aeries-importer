@@ -80,10 +80,8 @@ class AeriesClassroomData:
 
 class AeriesData:
 
-    def __init__(self, periods: List[int], s_cookie: str, awsalbapp0_cookie: str):
+    def __init__(self, periods: List[int], cookies: dict[str, str]):
         self.periods = periods
-        self.s_cookie = s_cookie
-        self.awsalbapp0_cookie = awsalbapp0_cookie
         self.request_verification_token = ''
         self.periods_to_gradebook_ids = {}
         self.periods_to_student_ids_to_student_nums = {}
@@ -93,20 +91,13 @@ class AeriesData:
         self.periods_to_student_ids_to_overall_grades = {}
         self.periods_to_student_names_to_detailed_overall_grades = {}
         self.session = requests.Session()
-        self.session.cookies.set("s", self.s_cookie, domain="milpitasusd.aeries.net", path="/")  # Must happen before warmup call to prevent gradebook stickiness in subsequent calls
-        self.session.cookies.set("AWSALBAPP-0", self.awsalbapp0_cookie, domain="milpitasusd.aeries.net", path="/")
-
-    def probe(self) -> None:
-        """
-        Probe for the Aeries cookie validity by checking if the gradebook page can be accessed.
-        """
-        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                   'Cookie': f's={self.s_cookie}'}
-        response = requests.get(GRADEBOOK_URL, headers=headers)
-        beautiful_soup = BeautifulSoup(response.text, 'html.parser')
-        self._get_periods_to_gradebook_and_term(beautiful_soup=beautiful_soup)
-
-        beautiful_soup.find(id=GRADEBOOK_HTML_ID)
+        for name, value in cookies.items():
+            self.session.cookies.set(
+                name,
+                value,
+                domain="milpitasusd.aeries.net",
+                path="/"
+            )
 
     def extract_gradebook_ids_from_html(self) -> None:
         """
@@ -123,8 +114,7 @@ class AeriesData:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
-            'Priority': 'u=0,i',
-            'Cookie': f's={self.s_cookie}'
+            'Priority': 'u=0,i'
         }
 
         response = self.session.get(GRADEBOOK_URL, headers=headers, impersonate=BROWSER_NAME)
@@ -179,8 +169,7 @@ class AeriesData:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
-            'Priority': 'u=0,i',
-            'Cookie': f's={self.s_cookie}'
+            'Priority': 'u=0,i'
         }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
@@ -221,8 +210,7 @@ class AeriesData:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
-            'Priority': 'u=0,i',
-            'Cookie': f's={self.s_cookie}'
+            'Priority': 'u=0,i'
         }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
@@ -293,8 +281,7 @@ class AeriesData:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
-            'Priority': 'u=0,i',
-            'Cookie': f's={self.s_cookie}'
+            'Priority': 'u=0,i'
         }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
@@ -346,8 +333,7 @@ class AeriesData:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
-            'Priority': 'u=0,i',
-            'Cookie': f's={self.s_cookie}'
+            'Priority': 'u=0,i'
         }
 
         for period, gradebook_id in self.periods_to_gradebook_ids.items():
@@ -441,7 +427,7 @@ class AeriesData:
             'sec-fetch-site': 'same-origin',
             'Priority': 'u=1,i',
             'x-requested-with': 'XMLHttpRequest',
-            'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}; s={self.s_cookie}'
+            'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}'
         }
         data = {
             '__RequestVerificationToken': form_request_verification_token,
@@ -507,7 +493,7 @@ class AeriesData:
             'Sec-Fetch-Site': 'same-origin',
             'Sec-Fetch-User': '?1',
             'Priority': 'u=0,i',
-            'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}; s={self.s_cookie}'
+            'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}'
         }
         data = {
             '__RequestVerificationToken': form_request_verification_token,
@@ -542,7 +528,7 @@ class AeriesData:
     def _get_form_request_verification_token(self, gradebook_number: str) -> str:
         params = {'gn': gradebook_number,
                   'an': 0}
-        headers = {'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}; s={self.s_cookie}'}
+        headers = {'Cookie': f'__RequestVerificationToken_L3RlYWNoZXI1={self.request_verification_token}'}
 
         response = self.session.get(CREATE_ASSIGNMENT_URL, params=params, headers=headers, impersonate=BROWSER_NAME)
         beautiful_soup = BeautifulSoup(response.text, 'html.parser')
@@ -570,8 +556,7 @@ class AeriesData:
                             student_number: int,
                             grade: Optional[float]) -> None:
         headers = {
-            'content-type': 'application/json; charset=UTF-8',
-            'cookie': f's={self.s_cookie}'
+            'content-type': 'application/json; charset=UTF-8'
         }
 
         if grade is None:
@@ -621,8 +606,7 @@ class AeriesData:
         :return: Mapping of student id to overall grade.
         """
         overall_grades = {}
-        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                   'Cookie': f's={self.s_cookie}'}
+        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'}
 
         gradebook_id = self.periods_to_gradebook_ids[period]
         student_ids_to_student_nums = self.periods_to_student_ids_to_student_nums[period]
@@ -666,8 +650,7 @@ class AeriesData:
         :return: Mapping of student name to overall grade.
         """
         overall_grades = {}
-        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                   'Cookie': f's={self.s_cookie}'}
+        headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'}
 
         gradebook_id = self.periods_to_gradebook_ids[period]
         student_ids_to_student_nums = self.periods_to_student_ids_to_student_nums[period]

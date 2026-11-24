@@ -46,6 +46,9 @@ if exist "%REQUIREMENTS_FILE%" (
     exit /b 1
 )
 
+playwright install chromium
+
+
 pip install --editable .
 
 :: Run the Click CLI application
